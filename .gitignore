@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# .NET
+bin/
+obj/
+
+# Logs
+*.log
+
+# Temp / build
+_tmpbuild/
+*.dll
+
+# VS
+.vs/
+*.user
+*.suo

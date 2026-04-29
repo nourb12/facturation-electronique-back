@@ -1,0 +1,994 @@
+
+using System;
+using Einvoicing.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+
+#nullable disable
+
+namespace Einvoicing.Infrastructure.Migrations
+{
+    [DbContext(typeof(ContextBaseDeDonnees))]
+    [Migration("20260318144920_module5")]
+    partial class module5
+    {
+        
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.8")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.CategorieProduit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.ToTable("Categories", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Client", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Adresse")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CodePostal")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstActif")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MatriculeFiscal")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Pays")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("Telephone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TypeClient")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Ville")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("EntrepriseId", "Email")
+                        .IsUnique();
+
+                    b.ToTable("Clients", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.CompteurFacture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Annee")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DernierNumero")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Mois")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Prefixe")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrepriseId", "Annee", "Mois")
+                        .IsUnique();
+
+                    b.ToTable("CompteurFactures", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Entreprise", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Adresse")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CodePostal")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("CodeTva")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<bool>("EstActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MatriculeFiscal")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ParametresTeif")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Pays")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("RegimeFiscal")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("SiteWeb")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Telephone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("VersionTeif")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Ville")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatriculeFiscal")
+                        .IsUnique();
+
+                    b.ToTable("Entreprises", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.ExternalExchange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AccepteeA")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DerniereAttempteLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EnvoyePar")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FactureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MotifRejet")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RejeteeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReponseCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ReponseMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId")
+                        .IsUnique();
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("FactureId");
+
+                    b.ToTable("Echanges", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Facture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConditionsPaiement")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreePar")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DateEcheance")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DateEmission")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DatePaiement")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Devise")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FactureOrigineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("HashIntegrite")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ModePaiement")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("MontantPaye")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Numero")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("TotalHt")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("TotalTtc")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("TotalTva")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<string>("TypeFacture")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("VersionTeif")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("XmlTeif")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("Statut");
+
+                    b.HasIndex("EntrepriseId", "Numero")
+                        .IsUnique();
+
+                    b.ToTable("Factures", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.HistoriqueFacture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AncienneValeur")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("EffectuePar")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FactureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NouvelleValeur")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactureId");
+
+                    b.ToTable("HistoriqueFactures", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.LigneFacture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("FactureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("MontantHt")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("MontantRemise")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("MontantTtc")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("MontantTva")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<int>("Ordre")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PrixUnitaire")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<Guid?>("ProduitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantite")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("TauxRemise")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("TauxTva")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Unite")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FactureId");
+
+                    b.ToTable("LignesFacture", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.OtpCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EstUtilise")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ExpireLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NbEchecs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UtilisateurId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UtilisateurId", "Type", "EstUtilise", "ExpireLe");
+
+                    b.ToTable("OtpCodes", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Paiement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Banque")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DatePaiement")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Devise")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("EnregistrePar")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FactureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("Montant")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("FactureId");
+
+                    b.ToTable("Paiements", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Produit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CategorieId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstActif")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Libelle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("PrixUnitaire")
+                        .HasColumnType("numeric(15,3)");
+
+                    b.Property<decimal>("TauxTva")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Unite")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategorieId");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("EntrepriseId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Produits", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdresseIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EstRevoque")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("EstUtilise")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ExpireLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("JwtId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid>("UtilisateurId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token");
+
+                    b.HasIndex("UtilisateurId");
+
+                    b.ToTable("RefreshTokens", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.SessionActive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdresseIp")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Appareil")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DerniereActivite")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Localisation")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RefreshTokenRef")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TypeAppareil")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UtilisateurId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UtilisateurId");
+
+                    b.ToTable("Sessions", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.SignatureRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CertificatId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DemandeePar")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EchoueeA")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FactureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MessageErreur")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("NbTentatives")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SignatureValue")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SigneeA")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.HasIndex("FactureId");
+
+                    b.ToTable("Signatures", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Utilisateur", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AlerteConnexion")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreeLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Departement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DerniereConnexion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DeuxFAActif")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DeuxFASecret")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<Guid?>("EntrepriseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstSupprime")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ModifieLe")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MotDePasseHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("Nom")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Poste")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Prenom")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Statut")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Telephone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("EntrepriseId");
+
+                    b.ToTable("Utilisateurs", (string)null);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.HistoriqueFacture", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Facture", null)
+                        .WithMany("Historique")
+                        .HasForeignKey("FactureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.LigneFacture", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Facture", null)
+                        .WithMany("Lignes")
+                        .HasForeignKey("FactureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.OtpCode", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Utilisateur", null)
+                        .WithMany("OtpCodes")
+                        .HasForeignKey("UtilisateurId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Produit", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.CategorieProduit", null)
+                        .WithMany("Produits")
+                        .HasForeignKey("CategorieId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Utilisateur", null)
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UtilisateurId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.SessionActive", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Utilisateur", null)
+                        .WithMany("Sessions")
+                        .HasForeignKey("UtilisateurId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Utilisateur", b =>
+                {
+                    b.HasOne("Einvoicing.Domain.Entities.Entreprise", null)
+                        .WithMany("Utilisateurs")
+                        .HasForeignKey("EntrepriseId");
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.CategorieProduit", b =>
+                {
+                    b.Navigation("Produits");
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Entreprise", b =>
+                {
+                    b.Navigation("Utilisateurs");
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Facture", b =>
+                {
+                    b.Navigation("Historique");
+
+                    b.Navigation("Lignes");
+                });
+
+            modelBuilder.Entity("Einvoicing.Domain.Entities.Utilisateur", b =>
+                {
+                    b.Navigation("OtpCodes");
+
+                    b.Navigation("RefreshTokens");
+
+                    b.Navigation("Sessions");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}

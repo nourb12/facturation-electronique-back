@@ -1,0 +1,6 @@
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.csproj.AssemblyReference.cache
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.GeneratedMSBuildEditorConfig.editorconfig
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.AssemblyInfoInputs.cache
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.AssemblyInfo.cs
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.csproj.CoreCompileInputs.cache
+C:\backendpfe\einvoicing\.codex-api-obj\Einvoicing.Api.MvcApplicationPartsAssemblyInfo.cache
