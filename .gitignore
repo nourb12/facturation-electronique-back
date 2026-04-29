@@ -18,3 +18,8 @@ _tmpbuild/
 .vs/
 *.user
 *.suo
+
+*.binlog
+nuget.temp.config
+logs.txt
+.codex-api-obj/
