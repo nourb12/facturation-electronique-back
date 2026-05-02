@@ -17,12 +17,14 @@ public class FactureServiceTests
     private readonly Mock<IClientRepository> _clientRepo = new();
     private readonly Mock<INumeroFactureService> _numeroService = new();
     private readonly Mock<IEntrepriseRepository> _entrepriseRepo = new();
+    private readonly Mock<IPersonnalisationRepository> _personnalisationRepo = new();
 
     private FactureService CreateService() => new(
         _factureRepo.Object,
         _clientRepo.Object,
         _numeroService.Object,
-        _entrepriseRepo.Object);
+        _entrepriseRepo.Object,
+        _personnalisationRepo.Object);
 
     [Fact]
     public async Task CreerAsync_WithLignes_CalculatesTotalsAndRestant()

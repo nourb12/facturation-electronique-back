@@ -142,3 +142,11 @@ public enum StatutJustificatif
     Perdu = 1,
     Present = 2
 }
+
+public enum DemoRequestStatus
+{
+    Pending = 0,
+    Confirmed = 1,
+    Completed = 2,
+    Cancelled = 3
+}

@@ -36,6 +36,7 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<SignatureRequest> Signatures => Set<SignatureRequest>();
     public DbSet<ExternalExchange> Echanges => Set<ExternalExchange>();
+    public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -400,5 +401,24 @@ internal sealed class ExchangeConfiguration : IEntityTypeConfiguration<ExternalE
         b.HasIndex(e => e.FactureId);
         b.HasIndex(e => e.EntrepriseId);
         b.HasIndex(e => e.CorrelationId).IsUnique();
+    }
+}
+
+internal sealed class DemoRequestConfiguration : IEntityTypeConfiguration<DemoRequest>
+{
+    public void Configure(EntityTypeBuilder<DemoRequest> b)
+    {
+        b.ToTable("DemoRequests"); b.HasKey(d => d.Id);
+        b.Property(d => d.FirstName).HasMaxLength(100).IsRequired();
+        b.Property(d => d.LastName).HasMaxLength(100).IsRequired();
+        b.Property(d => d.Email).HasMaxLength(254).IsRequired();
+        b.Property(d => d.Company).HasMaxLength(200).IsRequired();
+        b.Property(d => d.Phone).HasMaxLength(20);
+        b.Property(d => d.Message).HasMaxLength(1000);
+        b.Property(d => d.PreferredTime).HasMaxLength(10).IsRequired();
+        b.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
+        b.HasIndex(d => d.Email);
+        b.HasIndex(d => d.Status);
+        b.HasIndex(d => d.CreatedAt);
     }
 }

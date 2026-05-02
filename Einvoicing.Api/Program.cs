@@ -86,7 +86,11 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDemandeAccesService, DemandeAccesService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<KycScoringService>();
-builder.Services.AddHttpClient<IOcrClient, OcrClient>();
+builder.Services.AddHttpClient<IOcrClient, OcrClient>(client =>
+{
+    var timeoutSeconds = builder.Configuration.GetValue("OcrService:TimeoutSeconds", 360);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
 
 
 builder.Services.AddScoped<IEntrepriseService, EntrepriseService>();
@@ -141,6 +145,7 @@ builder.Services.AddScoped<IPaiementRepository, PaiementRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<ISignatureRepository, SignatureRepository>();
 builder.Services.AddScoped<IEchangeRepository, EchangeRepository>();
+builder.Services.AddScoped<IDemoRequestRepository, DemoRequestRepository>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

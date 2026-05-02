@@ -31,6 +31,11 @@ public sealed class EmailService(
         string.IsNullOrWhiteSpace(Password) ||
         Password == "DEMO";
 
+    public Task SendEmailAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default)
+    {
+        return EnvoyerSmtpAsync(destinataire, sujet, corpsHtml, ct);
+    }
+
     public Task EnvoyerOtpAsync(string email, string prenom, string otp, CancellationToken ct = default)
     {
         var sujet = "Votre code de réinitialisation - TunisFlow";

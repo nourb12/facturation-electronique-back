@@ -15,7 +15,8 @@ public sealed class FactureService(
     IFactureRepository factureRepo,
     IClientRepository clientRepo,
     INumeroFactureService numeroService,
-    IEntrepriseRepository entrepriseRepo
+    IEntrepriseRepository entrepriseRepo,
+    IPersonnalisationRepository personnalisationRepo
 ) : IFactureService
 {
     
@@ -224,8 +225,9 @@ public sealed class FactureService(
             ?? throw new NotFoundException("Client introuvable.");
         var entreprise = await entrepriseRepo.ObtenirParIdAsync(entrepriseId, ct)
             ?? throw new NotFoundException("Entreprise introuvable.");
+        var personnalisation = await personnalisationRepo.ObtenirAsync(entrepriseId, ct);
 
-        return FacturePdfBuilder.Generate(facture, client, entreprise);
+        return FacturePdfBuilder.Generate(facture, client, entreprise, personnalisation?.DonneesJson);
     }
     private static string BuildFactureHtml(
         Facture f, Client client, Einvoicing.Domain.Entities.Entreprise ent)

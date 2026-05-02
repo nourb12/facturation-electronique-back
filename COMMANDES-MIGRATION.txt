@@ -1,0 +1,157 @@
+═══════════════════════════════════════════════════════════════════════════════
+  🔧 COMMANDES À EXÉCUTER - BACKEND (.NET)
+═══════════════════════════════════════════════════════════════════════════════
+
+📍 ÉTAPE 1 : Enregistrer le Repository dans Program.cs
+───────────────────────────────────────────────────────────────────────────────
+
+Ouvrir : Einvoicing.Api/Program.cs
+
+Ajouter cette ligne dans la section des services (après les autres repositories) :
+
+    builder.Services.AddScoped<IDemoRequestRepository, DemoRequestRepository>();
+
+Exemple de contexte :
+    
+    // Autres repositories
+    builder.Services.AddScoped<IClientRepository, ClientRepository>();
+    builder.Services.AddScoped<IProduitRepository, ProduitRepository>();
+    
+    // AJOUTER ICI :
+    builder.Services.AddScoped<IDemoRequestRepository, DemoRequestRepository>();
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📍 ÉTAPE 2 : Créer la Migration EF Core
+───────────────────────────────────────────────────────────────────────────────
+
+Ouvrir un terminal PowerShell ou CMD dans le dossier du backend :
+
+    cd c:\backendpfe\einvoicing\Einvoicing.Infrastructure
+
+Créer la migration :
+
+    dotnet ef migrations add AddDemoRequestEntity --startup-project ../Einvoicing.Api
+
+Appliquer la migration :
+
+    dotnet ef database update --startup-project ../Einvoicing.Api
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📍 ÉTAPE 3 : Vérifier la Table en Base de Données
+───────────────────────────────────────────────────────────────────────────────
+
+La table "DemoRequests" doit être créée avec les colonnes suivantes :
+
+    - Id (uniqueidentifier, PK)
+    - FirstName (nvarchar(100))
+    - LastName (nvarchar(100))
+    - Email (nvarchar(254))
+    - Company (nvarchar(200))
+    - Phone (nvarchar(20), nullable)
+    - Message (nvarchar(1000), nullable)
+    - PreferredDate (datetime2)
+    - PreferredTime (nvarchar(10))
+    - Status (nvarchar(20))
+    - CreatedAt (datetime2)
+    - UpdatedAt (datetime2)
+
+Index créés :
+    - IX_DemoRequests_Email
+    - IX_DemoRequests_Status
+    - IX_DemoRequests_CreatedAt
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📍 ÉTAPE 4 : Démarrer le Backend
+───────────────────────────────────────────────────────────────────────────────
+
+    cd c:\backendpfe\einvoicing\Einvoicing.Api
+    dotnet run
+
+Vérifier que l'API démarre sans erreur.
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📍 ÉTAPE 5 : Tester les Endpoints
+───────────────────────────────────────────────────────────────────────────────
+
+Utiliser Postman, Swagger ou curl pour tester :
+
+1. POST /api/demo/book
+   Body (JSON) :
+   {
+     "prenom": "Test",
+     "nom": "User",
+     "email": "test@example.com",
+     "entreprise": "Test Corp",
+     "telephone": "+216 20 123 456",
+     "message": "Test message",
+     "date": "2026-05-15",
+     "heure": "10:00"
+   }
+
+2. GET /api/demo/requests
+   (Doit retourner la liste des demandes)
+
+3. GET /api/demo/requests/{id}
+   (Remplacer {id} par un GUID valide)
+
+4. PATCH /api/demo/requests/{id}/status
+   Body (JSON) :
+   {
+     "status": "confirmed"
+   }
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ CHECKLIST
+───────────────────────────────────────────────────────────────────────────────
+
+[ ] Repository enregistré dans Program.cs
+[ ] Migration créée (dotnet ef migrations add)
+[ ] Migration appliquée (dotnet ef database update)
+[ ] Table DemoRequests existe en base
+[ ] Backend démarre sans erreur
+[ ] Endpoint POST /api/demo/book fonctionne
+[ ] Endpoint GET /api/demo/requests fonctionne
+[ ] Emails sont envoyés (vérifier la configuration SMTP)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🐛 DÉPANNAGE
+───────────────────────────────────────────────────────────────────────────────
+
+Erreur : "No DbContext was found"
+→ Vérifier que le projet Einvoicing.Api est bien le startup project
+
+Erreur : "Unable to create an object of type 'ContextBaseDeDonnees'"
+→ Vérifier la connection string dans appsettings.json
+
+Erreur : "IDemoRequestRepository not registered"
+→ Vérifier que le repository est bien enregistré dans Program.cs
+
+Erreur : "Table 'DemoRequests' doesn't exist"
+→ Exécuter : dotnet ef database update --startup-project ../Einvoicing.Api
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📞 SUPPORT
+───────────────────────────────────────────────────────────────────────────────
+
+Documentation complète : DEMO-BOOKING-INTEGRATION.md
+Résumé rapide : INTEGRATION-COMPLETE.txt
+Liste des fichiers : FICHIERS-CREES-DEMO.md
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Bon développement ! 🚀

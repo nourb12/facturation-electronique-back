@@ -3,6 +3,7 @@ using System;
 using Einvoicing.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Einvoicing.Infrastructure.Migrations
 {
     [DbContext(typeof(ContextBaseDeDonnees))]
-    partial class ContextBaseDeDonneesModelSnapshot : ModelSnapshot
+    [Migration("20260501140653_AddDemoRequestEntity")]
+    partial class AddDemoRequestEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -49,6 +49,7 @@ public interface ITotpService
 
 public interface IEmailService
 {
+    Task SendEmailAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default);
     Task EnvoyerOtpAsync(string email, string prenom, string otp, CancellationToken ct = default);
     Task EnvoyerAlerteConnexionAsync(string email, string prenom, string ip, string appareil, CancellationToken ct = default);
     Task EnvoyerConfirmationReinitialisationAsync(string email, string prenom, CancellationToken ct = default);
