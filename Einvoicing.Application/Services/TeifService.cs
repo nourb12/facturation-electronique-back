@@ -17,19 +17,13 @@ public sealed class NumeroFactureService(ICompteurFactureRepository compteurRepo
     public async Task<string> GenererNumeroAsync(Guid entrepriseId, CancellationToken ct = default)
     {
         var maintenant = DateTime.UtcNow;
-        var compteur = await compteurRepo.ObtenirAsync(entrepriseId, maintenant.Year, maintenant.Month, ct);
+        var compteur = await compteurRepo.IncrementerEtObtenirAsync(
+            entrepriseId,
+            maintenant.Year,
+            maintenant.Month,
+            ct);
 
-        if (compteur is null)
-        {
-            compteur = Domain.Entities.CompteurFacture.Creer(entrepriseId, maintenant.Year, maintenant.Month);
-            await compteurRepo.AjouterAsync(compteur, ct);
-        }
-
-        var numero = compteur.Incrementer();
-        compteurRepo.MettreAJour(compteur);
-        await compteurRepo.SauvegarderAsync(ct);
-
-        return numero;
+        return $"{compteur.Prefixe}-{maintenant.Year}{maintenant.Month:D2}-{compteur.DernierNumero:D4}";
     }
 }
 

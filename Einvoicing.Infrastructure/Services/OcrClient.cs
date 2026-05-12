@@ -1,6 +1,7 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Einvoicing.Application.Interfaces;
+using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -104,6 +105,83 @@ public sealed class OcrClient(
                 ConfidenceScore = 0d,
                 ErreurMessage = "Timeout — le service OCR n'a pas répondu à temps.",
                 TexteBrut = string.Empty
+            };
+        }
+    }
+
+    public async Task<AccountingOcrResult?> ExtractAccountingAsync(
+        IFormFile file,
+        string documentType,
+        CancellationToken ct = default)
+    {
+        var baseUrl = config["OcrService:BaseUrl"];
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            logger.LogInformation("OcrService:BaseUrl non configuré — OCR comptable indisponible.");
+            return new AccountingOcrResult
+            {
+                OcrSuccess = false,
+                DocumentType = documentType,
+                OverallConfidence = 0,
+                ErrorMessage = "Service OCR non configuré."
+            };
+        }
+
+        try
+        {
+            using var form = new MultipartFormDataContent();
+            var streamContent = new StreamContent(file.OpenReadStream());
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType ?? "application/octet-stream");
+            form.Add(streamContent, "file", file.FileName);
+            form.Add(new StringContent(documentType), "document_type");
+
+            using var resp = await http.PostAsync($"{baseUrl.TrimEnd('/')}/ocr/accounting/parse", form, ct);
+            var json = await resp.Content.ReadAsStringAsync(ct);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Accounting OCR responded {Status}: {Body}",
+                    (int)resp.StatusCode, json[..Math.Min(200, json.Length)]);
+
+                return new AccountingOcrResult
+                {
+                    OcrSuccess = false,
+                    DocumentType = documentType,
+                    OverallConfidence = 0,
+                    ErrorMessage = $"OCR comptable {(int)resp.StatusCode} : {json[..Math.Min(300, json.Length)]}"
+                };
+            }
+
+            var result = JsonSerializer.Deserialize<AccountingOcrResult>(json, JsonOpts);
+            return result ?? new AccountingOcrResult
+            {
+                OcrSuccess = false,
+                DocumentType = documentType,
+                OverallConfidence = 0,
+                ErrorMessage = "Réponse OCR comptable vide ou invalide."
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Accounting OCR inaccessible ({Url})", baseUrl);
+            return new AccountingOcrResult
+            {
+                OcrSuccess = false,
+                DocumentType = documentType,
+                OverallConfidence = 0,
+                ErrorMessage = $"OCR comptable inaccessible : {ex.Message}"
+            };
+        }
+        catch (TaskCanceledException)
+        {
+            logger.LogWarning("Accounting OCR timeout");
+            return new AccountingOcrResult
+            {
+                OcrSuccess = false,
+                DocumentType = documentType,
+                OverallConfidence = 0,
+                ErrorMessage = "Timeout — le service OCR comptable n'a pas répondu à temps."
             };
         }
     }

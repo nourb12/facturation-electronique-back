@@ -108,6 +108,9 @@ builder.Services.AddScoped<INumeroFactureService, NumeroFactureService>();
 
 builder.Services.AddScoped<IPaiementService, PaiementService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<IScanService, ScanService>();
+builder.Services.AddScoped<IFournisseurService, FournisseurService>();
+builder.Services.AddScoped<IExpenseReviewService, ExpenseReviewService>();
 builder.Services.AddScoped<ISignatureService, SignatureService>();
 builder.Services.AddScoped<IEchangeTtnService, EchangeTtnService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -143,6 +146,8 @@ builder.Services.AddScoped<ICompteurFactureRepository, CompteurFactureRepository
 
 builder.Services.AddScoped<IPaiementRepository, PaiementRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+builder.Services.AddScoped<IScannedDocumentRepository, ScannedDocumentRepository>();
+builder.Services.AddScoped<IFournisseurRepository, FournisseurRepository>();
 builder.Services.AddScoped<ISignatureRepository, SignatureRepository>();
 builder.Services.AddScoped<IEchangeRepository, EchangeRepository>();
 builder.Services.AddScoped<IDemoRequestRepository, DemoRequestRepository>();

@@ -3,6 +3,7 @@ using System;
 using Einvoicing.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Einvoicing.Infrastructure.Migrations
 {
     [DbContext(typeof(ContextBaseDeDonnees))]
-    partial class ContextBaseDeDonneesModelSnapshot : ModelSnapshot
+    [Migration("20260508140115_AddScannedDocuments")]
+    partial class AddScannedDocuments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -497,60 +500,6 @@ namespace Einvoicing.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Factures", (string)null);
-                });
-
-            modelBuilder.Entity("Einvoicing.Domain.Entities.Fournisseur", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Adresse")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime>("CreeLe")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<Guid>("EntrepriseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("EstActif")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Iban")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<string>("MatriculeFiscal")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTime>("ModifieLe")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Telephone")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EntrepriseId");
-
-                    b.HasIndex("EntrepriseId", "MatriculeFiscal");
-
-                    b.HasIndex("EntrepriseId", "Nom");
-
-                    b.ToTable("Fournisseurs", (string)null);
                 });
 
             modelBuilder.Entity("Einvoicing.Domain.Entities.HistoriqueFacture", b =>
@@ -1186,34 +1135,9 @@ namespace Einvoicing.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AccountingPeriodLabel")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("ActivitiesJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("[]");
-
-                    b.Property<string>("AllocationsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("[]");
-
-                    b.Property<string>("BankMatchJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("CategorieNom")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
-
-                    b.Property<string>("CommentsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("[]");
 
                     b.Property<string>("Compte")
                         .HasMaxLength(120)
@@ -1237,22 +1161,11 @@ namespace Einvoicing.Infrastructure.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
-                    b.Property<string>("DocumentType")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
                     b.Property<Guid>("EntrepriseId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("FactureId")
                         .HasColumnType("uuid");
-
-                    b.Property<Guid?>("FournisseurId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("FournisseurMatriculeFiscal")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("JustificatifChemin")
                         .HasMaxLength(600)
@@ -1274,12 +1187,6 @@ namespace Einvoicing.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("character varying(250)");
 
-                    b.Property<string>("MissingFieldsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("[]");
-
                     b.Property<DateTime>("ModifieLe")
                         .HasColumnType("timestamp with time zone");
 
@@ -1288,21 +1195,6 @@ namespace Einvoicing.Infrastructure.Migrations
 
                     b.Property<decimal>("Montant")
                         .HasColumnType("numeric(15,3)");
-
-                    b.Property<int?>("OcrOverallConfidence")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("RecoverableVatAmount")
-                        .HasColumnType("numeric(15,3)");
-
-                    b.Property<decimal?>("RecoverableVatRate")
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("ReviewFieldsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("[]");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -1335,11 +1227,7 @@ namespace Einvoicing.Infrastructure.Migrations
 
                     b.HasIndex("FactureId");
 
-                    b.HasIndex("FournisseurId");
-
                     b.HasIndex("EntrepriseId", "Date");
-
-                    b.HasIndex("EntrepriseId", "Source");
 
                     b.HasIndex("EntrepriseId", "Statut");
 

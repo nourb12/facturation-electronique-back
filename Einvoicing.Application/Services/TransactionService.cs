@@ -19,7 +19,7 @@ public sealed class TransactionService(
         Guid entrepriseId, FiltreTransactionsRequest filtre, CancellationToken ct = default)
     {
         var (items, total) = await transactionRepo.ListerAsync(entrepriseId, filtre, ct);
-        var dtos = items.Select(ToDto).ToList();
+        var dtos = items.Select(TransactionDtoFactory.Create).ToList();
         return new ListeTransactionsDto(dtos, total, filtre.Page, filtre.ParPage);
     }
 
@@ -32,7 +32,7 @@ public sealed class TransactionService(
         if (tx.EntrepriseId != entrepriseId)
             throw new AccesRefuseException();
 
-        return ToDto(tx);
+        return TransactionDtoFactory.Create(tx);
     }
 
     public async Task<TransactionDto> CreerAsync(
@@ -59,13 +59,14 @@ public sealed class TransactionService(
             description: req.Description,
             compte: req.Compte,
             factureId: req.FactureId,
+            source: DocumentSource.Web,
             statut: req.FactureId is null ? StatutTransaction.NonJustifiee : StatutTransaction.Justifiee,
             statutJustificatif: null
         );
 
         await transactionRepo.AjouterAsync(tx, ct);
         await transactionRepo.SauvegarderAsync(ct);
-        return ToDto(tx);
+        return TransactionDtoFactory.Create(tx);
     }
 
     public async Task<TransactionDto> MettreAJourAsync(
@@ -109,7 +110,7 @@ public sealed class TransactionService(
 
         transactionRepo.MettreAJour(tx);
         await transactionRepo.SauvegarderAsync(ct);
-        return ToDto(tx);
+        return TransactionDtoFactory.Create(tx);
     }
 
     public async Task SupprimerAsync(Guid id, Guid entrepriseId, CancellationToken ct = default)
@@ -141,7 +142,7 @@ public sealed class TransactionService(
 
         transactionRepo.MettreAJour(tx);
         await transactionRepo.SauvegarderAsync(ct);
-        return ToDto(tx);
+        return TransactionDtoFactory.Create(tx);
     }
 
     public async Task<TransactionDto> LierFactureAsync(
@@ -160,7 +161,7 @@ public sealed class TransactionService(
         tx.LierFacture(utilisateurId, factureId);
         transactionRepo.MettreAJour(tx);
         await transactionRepo.SauvegarderAsync(ct);
-        return ToDto(tx);
+        return TransactionDtoFactory.Create(tx);
     }
 
     public Task<TransactionCountersDto> CountersAsync(Guid entrepriseId, FiltreTransactionsRequest filtre, CancellationToken ct = default)
@@ -211,39 +212,4 @@ public sealed class TransactionService(
         return value;
     }
 
-    private static TransactionDto ToDto(Transaction t)
-    {
-        TransactionDocumentDto? doc = null;
-        if (!string.IsNullOrWhiteSpace(t.JustificatifChemin))
-        {
-            var url = "/" + t.JustificatifChemin.Trim().Replace("\\", "/");
-            doc = new TransactionDocumentDto(
-                t.JustificatifNomFichier ?? "justificatif",
-                url,
-                t.JustificatifContentType,
-                t.JustificatifTailleOctets
-            );
-        }
-
-        return new TransactionDto(
-            t.Id,
-            t.EntrepriseId,
-            t.Date,
-            t.Libelle,
-            t.Description,
-            t.TiersNom,
-            t.CategorieNom,
-            t.Type,
-            t.Statut,
-            t.StatutJustificatif,
-            t.Montant,
-            t.Devise,
-            t.Compte,
-            t.FactureId,
-            doc,
-            t.CreeLe,
-            t.ModifieLe
-        );
-    }
 }
-

@@ -19,6 +19,7 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     
     public DbSet<Entreprise> Entreprises => Set<Entreprise>();
     public DbSet<Client> Clients => Set<Client>();
+    public DbSet<Fournisseur> Fournisseurs => Set<Fournisseur>();
     public DbSet<CategorieProduit> Categories => Set<CategorieProduit>();
     public DbSet<Produit> Produits => Set<Produit>();
     public DbSet<ParametreFiscal> ParametresFiscaux => Set<ParametreFiscal>();
@@ -34,6 +35,7 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     
     public DbSet<Paiement> Paiements => Set<Paiement>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<ScannedDocument> ScannedDocuments => Set<ScannedDocument>();
     public DbSet<SignatureRequest> Signatures => Set<SignatureRequest>();
     public DbSet<ExternalExchange> Echanges => Set<ExternalExchange>();
     public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
@@ -160,6 +162,23 @@ internal sealed class ClientConfiguration : IEntityTypeConfiguration<Client>
         b.Property(c => c.TypeClient).HasConversion<string>().HasMaxLength(10);
         b.HasIndex(c => new { c.EntrepriseId, c.Email }).IsUnique();
         b.HasIndex(c => c.EntrepriseId);
+    }
+}
+
+internal sealed class FournisseurConfiguration : IEntityTypeConfiguration<Fournisseur>
+{
+    public void Configure(EntityTypeBuilder<Fournisseur> b)
+    {
+        b.ToTable("Fournisseurs"); b.HasKey(f => f.Id);
+        b.Property(f => f.Nom).HasMaxLength(200).IsRequired();
+        b.Property(f => f.MatriculeFiscal).HasMaxLength(30);
+        b.Property(f => f.Adresse).HasMaxLength(300);
+        b.Property(f => f.Iban).HasMaxLength(60);
+        b.Property(f => f.Email).HasMaxLength(254);
+        b.Property(f => f.Telephone).HasMaxLength(20);
+        b.HasIndex(f => f.EntrepriseId);
+        b.HasIndex(f => new { f.EntrepriseId, f.Nom });
+        b.HasIndex(f => new { f.EntrepriseId, f.MatriculeFiscal });
     }
 }
 
@@ -355,10 +374,22 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         b.Property(t => t.TiersNom).HasMaxLength(200);
         b.Property(t => t.CategorieNom).HasMaxLength(120);
         b.Property(t => t.Compte).HasMaxLength(120);
+        b.Property(t => t.FournisseurMatriculeFiscal).HasMaxLength(30);
+        b.Property(t => t.DocumentType).HasMaxLength(60);
+        b.Property(t => t.ReviewFieldsJson).HasColumnType("text").HasDefaultValue("[]");
+        b.Property(t => t.MissingFieldsJson).HasColumnType("text").HasDefaultValue("[]");
+        b.Property(t => t.AllocationsJson).HasColumnType("text").HasDefaultValue("[]");
+        b.Property(t => t.CommentsJson).HasColumnType("text").HasDefaultValue("[]");
+        b.Property(t => t.ActivitiesJson).HasColumnType("text").HasDefaultValue("[]");
+        b.Property(t => t.BankMatchJson).HasColumnType("text");
+        b.Property(t => t.AccountingPeriodLabel).HasMaxLength(80);
+        b.Property(t => t.RecoverableVatAmount).HasColumnType("numeric(15,3)");
+        b.Property(t => t.RecoverableVatRate).HasColumnType("numeric(5,2)");
 
         b.Property(t => t.Type).HasConversion<string>().HasMaxLength(20);
         b.Property(t => t.Statut).HasConversion<string>().HasMaxLength(20);
         b.Property(t => t.StatutJustificatif).HasConversion<string>().HasMaxLength(20);
+        b.Property(t => t.Source).HasConversion<string>().HasMaxLength(30).HasDefaultValue(DocumentSource.Web);
 
         b.Property(t => t.Devise).HasMaxLength(3).IsRequired();
         b.Property(t => t.Montant).HasColumnType("numeric(15,3)").IsRequired();
@@ -370,7 +401,30 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
         b.HasIndex(t => t.EntrepriseId);
         b.HasIndex(t => new { t.EntrepriseId, t.Date });
         b.HasIndex(t => new { t.EntrepriseId, t.Statut });
+        b.HasIndex(t => new { t.EntrepriseId, t.Source });
+        b.HasIndex(t => t.FournisseurId);
         b.HasIndex(t => t.FactureId);
+    }
+}
+
+internal sealed class ScannedDocumentConfiguration : IEntityTypeConfiguration<ScannedDocument>
+{
+    public void Configure(EntityTypeBuilder<ScannedDocument> b)
+    {
+        b.ToTable("ScannedDocuments"); b.HasKey(x => x.Id);
+        b.Property(x => x.DocumentType).HasMaxLength(60).IsRequired();
+        b.Property(x => x.Source).HasConversion<string>().HasMaxLength(30).IsRequired();
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+        b.Property(x => x.FilePath).HasMaxLength(500).IsRequired();
+        b.Property(x => x.FileName).HasMaxLength(255).IsRequired();
+        b.Property(x => x.ContentType).HasMaxLength(120);
+        b.Property(x => x.RawText).HasColumnType("text");
+        b.Property(x => x.FieldsJson).HasColumnType("text").IsRequired();
+        b.Property(x => x.MissingFieldsJson).HasColumnType("text").IsRequired();
+        b.Property(x => x.ErrorMessage).HasMaxLength(2000);
+        b.HasIndex(x => x.EntrepriseId);
+        b.HasIndex(x => x.Status);
+        b.HasIndex(x => x.TransactionId);
     }
 }
 

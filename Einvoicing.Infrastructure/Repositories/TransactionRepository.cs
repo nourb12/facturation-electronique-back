@@ -103,16 +103,22 @@ public sealed class TransactionRepository(ContextBaseDeDonnees db) : ITransactio
     {
         query = query.Where(t => t.EntrepriseId == entrepriseId);
 
-        if (filtre.DateDebut.HasValue)
-            query = query.Where(t => t.Date >= filtre.DateDebut.Value);
-        if (filtre.DateFin.HasValue)
-            query = query.Where(t => t.Date <= filtre.DateFin.Value);
+        var dateDebutUtc = NormalizeUtc(filtre.DateDebut);
+        var dateFinUtc = NormalizeUtc(filtre.DateFin);
+
+        if (dateDebutUtc.HasValue)
+            query = query.Where(t => t.Date >= dateDebutUtc.Value);
+        if (dateFinUtc.HasValue)
+            query = query.Where(t => t.Date <= dateFinUtc.Value);
 
         if (filtre.Statut.HasValue)
             query = query.Where(t => t.Statut == filtre.Statut.Value);
 
         if (filtre.Type.HasValue)
             query = query.Where(t => t.Type == filtre.Type.Value);
+
+        if (filtre.Source.HasValue)
+            query = query.Where(t => t.Source == filtre.Source.Value);
 
         if (!string.IsNullOrWhiteSpace(filtre.CategorieNom))
         {
@@ -131,5 +137,17 @@ public sealed class TransactionRepository(ContextBaseDeDonnees db) : ITransactio
 
         return query;
     }
-}
 
+    private static DateTime? NormalizeUtc(DateTime? value)
+    {
+        if (!value.HasValue)
+            return null;
+
+        return value.Value.Kind switch
+        {
+            DateTimeKind.Utc => value.Value,
+            DateTimeKind.Local => value.Value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+        };
+    }
+}

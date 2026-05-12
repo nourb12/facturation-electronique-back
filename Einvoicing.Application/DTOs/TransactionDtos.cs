@@ -10,7 +10,8 @@ public record FiltreTransactionsRequest(
     DateTime? DateDebut = null,
     DateTime? DateFin = null,
     string? CategorieNom = null,
-    string? Recherche = null
+    string? Recherche = null,
+    DocumentSource? Source = null
 );
 
 public record CreerTransactionRequest(
@@ -48,6 +49,47 @@ public record TransactionDocumentDto(
     long? SizeBytes
 );
 
+public record TransactionAllocationDto(
+    Guid Id,
+    string CategoryName,
+    decimal Percentage,
+    decimal Amount
+);
+
+public record TransactionCommentDto(
+    Guid Id,
+    Guid? AuthorId,
+    string AuthorName,
+    string Message,
+    DateTime CreatedAt
+);
+
+public record TransactionActivityDto(
+    Guid Id,
+    Guid? AuthorId,
+    string? AuthorName,
+    string Action,
+    string Description,
+    DateTime CreatedAt
+);
+
+public record TransactionBankSuggestionDto(
+    string Label,
+    string MatchType,
+    DateTime Date,
+    decimal Amount,
+    string? Counterparty
+);
+
+public record TransactionBankMatchDto(
+    string? Status,
+    string? Reference,
+    DateTime? Date,
+    decimal? Amount,
+    string? Counterparty,
+    List<TransactionBankSuggestionDto> Suggestions
+);
+
 public record TransactionDto(
     Guid Id,
     Guid EntrepriseId,
@@ -56,6 +98,11 @@ public record TransactionDto(
     string? Description,
     string? TiersNom,
     string? CategorieNom,
+    string Source,
+    Guid? FournisseurId,
+    string? FournisseurMatriculeFiscal,
+    string? DocumentType,
+    int? OcrOverallConfidence,
     TypeTransaction Type,
     StatutTransaction Statut,
     StatutJustificatif? StatutJustificatif,
@@ -64,6 +111,15 @@ public record TransactionDto(
     string? Compte,
     Guid? FactureId,
     TransactionDocumentDto? DocumentLie,
+    List<ExtractedFieldDto> ReviewFields,
+    List<string> MissingFieldKeys,
+    List<TransactionAllocationDto> Allocations,
+    List<TransactionCommentDto> Comments,
+    List<TransactionActivityDto> Activities,
+    TransactionBankMatchDto? BankMatch,
+    string? AccountingPeriodLabel,
+    decimal? RecoverableVatAmount,
+    decimal? RecoverableVatRate,
     DateTime CreeLe,
     DateTime ModifieLe
 );
@@ -91,4 +147,3 @@ public record TransactionCategorieResumeDto(
     int Count,
     decimal Montant
 );
-

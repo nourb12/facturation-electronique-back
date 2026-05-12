@@ -3,8 +3,11 @@ using Einvoicing.Application.Interfaces;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using System.Globalization;
+using System.Data;
 using Einvoicing.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace Einvoicing.Infrastructure.Repositories;
 
@@ -279,6 +282,52 @@ public sealed class CompteurFactureRepository(ContextBaseDeDonnees db) : ICompte
 
     public void MettreAJour(CompteurFacture compteur)
         => db.CompteurFactures.Update(compteur);
+
+    public async Task<CompteurFactureNumeroResult> IncrementerEtObtenirAsync(
+        Guid entrepriseId, int annee, int mois, CancellationToken ct = default)
+    {
+        const string sql = """
+            INSERT INTO "CompteurFactures" ("Id", "EntrepriseId", "Annee", "Mois", "DernierNumero", "Prefixe")
+            VALUES (@id, @entrepriseId, @annee, @mois, 1, @prefixe)
+            ON CONFLICT ("EntrepriseId", "Annee", "Mois")
+            DO UPDATE SET "DernierNumero" = "CompteurFactures"."DernierNumero" + 1
+            RETURNING "DernierNumero", "Prefixe";
+            """;
+
+        var connection = db.Database.GetDbConnection();
+        var openedHere = connection.State != ConnectionState.Open;
+
+        if (openedHere)
+            await connection.OpenAsync(ct);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+
+            if (db.Database.CurrentTransaction is IDbContextTransaction currentTransaction)
+                command.Transaction = currentTransaction.GetDbTransaction();
+
+            command.Parameters.Add(new NpgsqlParameter("id", Guid.NewGuid()));
+            command.Parameters.Add(new NpgsqlParameter("entrepriseId", entrepriseId));
+            command.Parameters.Add(new NpgsqlParameter("annee", annee));
+            command.Parameters.Add(new NpgsqlParameter("mois", mois));
+            command.Parameters.Add(new NpgsqlParameter("prefixe", "FAC"));
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+                throw new InvalidOperationException("Impossible d'incrémenter le compteur de factures.");
+
+            return new CompteurFactureNumeroResult(
+                reader.GetInt32(0),
+                reader.GetString(1));
+        }
+        finally
+        {
+            if (openedHere)
+                await connection.CloseAsync();
+        }
+    }
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

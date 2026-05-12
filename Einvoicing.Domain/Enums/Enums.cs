@@ -143,6 +143,19 @@ public enum StatutJustificatif
     Present = 2
 }
 
+public enum DocumentSource
+{
+    Web = 0,
+    MobileApp = 1
+}
+
+public enum ScannedDocumentStatus
+{
+    Uploaded = 0,
+    MobileReviewed = 1,
+    LinkedToTransaction = 2
+}
+
 public enum DemoRequestStatus
 {
     Pending = 0,

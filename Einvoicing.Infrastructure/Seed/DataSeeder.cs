@@ -216,8 +216,7 @@ public static class DataSeeder
 
         await db.SaveChangesAsync();
 
-        var compteur = CompteurFacture.Creer(entreprise.Id, now.Year, now.Month);
-        db.CompteurFactures.Add(compteur);
+        var compteur = await GetOrCreateCompteurFactureAsync(db, entreprise.Id, now.Year, now.Month);
         await db.SaveChangesAsync();
 
         string NextNumero()
@@ -384,6 +383,8 @@ public static class DataSeeder
         db.Signatures.Add(signaturePayee);
         db.Echanges.AddRange(echangePayee, echangePartiel, echangeRejete);
 
+        await EnsureAvoirsSeedAsync(db, entreprise, admin, now);
+
         await db.SaveChangesAsync();
     }
 
@@ -511,6 +512,7 @@ public static class DataSeeder
         await db.SaveChangesAsync();
 
         await EnsureInvoicesAsync(db, entreprise, auteur, financier, now);
+        await EnsureAvoirsSeedAsync(db, entreprise, auteur, now);
         await db.SaveChangesAsync();
 
         var score = CalculerScore(db, entreprise.Id);
@@ -611,11 +613,7 @@ public static class DataSeeder
         if (clients.Count < 3 || produits.Count < 3)
             return;
 
-        var compteur = await db.CompteurFactures
-            .FirstOrDefaultAsync(c => c.EntrepriseId == entreprise.Id && c.Annee == now.Year && c.Mois == now.Month)
-            ?? CompteurFacture.Creer(entreprise.Id, now.Year, now.Month);
-        if (compteur.Id == Guid.Empty || !await db.CompteurFactures.AnyAsync(c => c.Id == compteur.Id))
-            db.CompteurFactures.Add(compteur);
+        var compteur = await GetOrCreateCompteurFactureAsync(db, entreprise.Id, now.Year, now.Month);
 
         string NextNumero() => compteur.Incrementer();
 
@@ -666,6 +664,77 @@ public static class DataSeeder
         db.Echanges.Add(echange);
     }
 
+    private static async Task EnsureAvoirsSeedAsync(
+        ContextBaseDeDonnees db,
+        Entreprise entreprise,
+        Utilisateur auteur,
+        DateTime now)
+    {
+        const int cible = 7;
+        var avoirCount = await db.Factures.CountAsync(f => f.EntrepriseId == entreprise.Id && f.TypeFacture == TypeFacture.Avoir);
+        if (avoirCount >= cible)
+            return;
+
+        var clients = await db.Clients.Where(c => c.EntrepriseId == entreprise.Id).OrderBy(c => c.CreeLe).ToListAsync();
+        var produits = await db.Produits.Where(p => p.EntrepriseId == entreprise.Id).OrderBy(p => p.CreeLe).ToListAsync();
+        if (clients.Count == 0 || produits.Count == 0)
+            return;
+
+        var compteur = await GetOrCreateCompteurFactureAsync(db, entreprise.Id, now.Year, now.Month);
+
+        string NextNumero() => compteur.Incrementer();
+
+        var modes = new[]
+        {
+            ModePaiement.Virement,
+            ModePaiement.Cheque,
+            ModePaiement.Especes,
+            ModePaiement.CarteBancaire,
+            ModePaiement.Traite
+        };
+
+        var aAjouter = cible - avoirCount;
+        var liste = new List<Facture>(aAjouter);
+        for (var i = 0; i < aAjouter; i++)
+        {
+            var client = clients[i % clients.Count];
+            var produit = produits[i % produits.Count];
+            var echeance = now.AddDays(30 + (i * 3));
+            var avoir = Facture.Creer(
+                entreprise.Id,
+                client.Id,
+                auteur.Id,
+                NextNumero(),
+                TypeFacture.Avoir,
+                modes[i % modes.Length],
+                echeance,
+                $"AVOIR-SEED-{avoirCount + i + 1:D3}",
+                $"Avoir de demonstration (seed) n {avoirCount + i + 1}",
+                "Paiement a 30 jours",
+                entreprise.DevisePrincipale);
+
+            var qte = 1m + (i * 0.1m);
+            avoir.AjouterLigne(LigneFacture.Creer(
+                avoir.Id,
+                1,
+                produit.Libelle,
+                qte,
+                produit.PrixUnitaire,
+                produit.TauxTva,
+                produit.Id,
+                produit.Description,
+                produit.Unite,
+                0));
+
+            if (i % 3 == 1)
+                avoir.ValiderMetier(auteur.Id);
+
+            liste.Add(avoir);
+        }
+
+        db.Factures.AddRange(liste);
+    }
+
     private static (int score, object details) CalculerScore(ContextBaseDeDonnees db, Guid entrepriseId)
     {
         var clients = db.Clients.Count(c => c.EntrepriseId == entrepriseId);
@@ -682,6 +751,27 @@ public static class DataSeeder
             paiements,
             parametrage
         });
+    }
+
+    private static async Task<CompteurFacture> GetOrCreateCompteurFactureAsync(
+        ContextBaseDeDonnees db,
+        Guid entrepriseId,
+        int annee,
+        int mois)
+    {
+        var tracked = db.CompteurFactures.Local
+            .FirstOrDefault(c => c.EntrepriseId == entrepriseId && c.Annee == annee && c.Mois == mois);
+        if (tracked is not null)
+            return tracked;
+
+        var persisted = await db.CompteurFactures
+            .FirstOrDefaultAsync(c => c.EntrepriseId == entrepriseId && c.Annee == annee && c.Mois == mois);
+        if (persisted is not null)
+            return persisted;
+
+        var compteur = CompteurFacture.Creer(entrepriseId, annee, mois);
+        db.CompteurFactures.Add(compteur);
+        return compteur;
     }
 
     private static string PosteParRole(RoleUtilisateur role)

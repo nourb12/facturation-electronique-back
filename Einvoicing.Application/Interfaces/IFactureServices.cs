@@ -54,5 +54,9 @@ public interface ICompteurFactureRepository
     Task<CompteurFacture?> ObtenirAsync(Guid entrepriseId, int annee, int mois, CancellationToken ct = default);
     Task AjouterAsync(CompteurFacture compteur, CancellationToken ct = default);
     void MettreAJour(CompteurFacture compteur);
+    Task<CompteurFactureNumeroResult> IncrementerEtObtenirAsync(
+        Guid entrepriseId, int annee, int mois, CancellationToken ct = default);
     Task SauvegarderAsync(CancellationToken ct = default);
 }
+
+public readonly record struct CompteurFactureNumeroResult(int DernierNumero, string Prefixe);
