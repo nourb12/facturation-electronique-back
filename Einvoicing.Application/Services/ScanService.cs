@@ -20,12 +20,30 @@ public sealed class ScanService(
 
     private static readonly Dictionary<string, string[]> RequiredFieldsByType = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["supplier_invoice"] = ["supplier_name", "invoice_number", "issue_date", "total_ttc"],
-        ["cash_receipt"] = ["merchant_name", "issue_date", "total_ttc"],
-        ["payment_receipt"] = ["reference", "issue_date", "amount"],
-        ["delivery_note"] = ["delivery_note_number", "issue_date", "supplier_name"],
-        ["expense_report"] = ["expense_type", "issue_date", "total_ttc"],
-        ["bank_statement"] = ["iban", "period_label"]
+        ["facture"] = ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc", "trade_sense", "payment_status"],
+        ["proforma"] = ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc", "trade_sense"],
+        ["avoir"] = ["document_number", "issue_date", "supplier_name", "total_ttc", "trade_sense", "payment_status"],
+        ["devis"] = ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc"],
+        ["bon_commande"] = ["document_number", "issue_date", "supplier_name", "client_name"],
+        ["bon_livraison"] = ["document_number", "issue_date", "supplier_name", "client_name"],
+        ["bon_sortie"] = ["document_number", "issue_date"],
+        ["paiement_recu"] = ["document_number", "issue_date", "amount", "payment_status"],
+        ["paiement_emis"] = ["document_number", "issue_date", "amount", "payment_status"],
+        ["ordre_fabrication"] = ["document_number", "issue_date"]
+    };
+
+    private static readonly Dictionary<string, string> DocumentTypeAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["supplier_invoice"] = "facture",
+        ["cash_receipt"] = "facture",
+        ["payment_receipt"] = "paiement_recu",
+        ["delivery_note"] = "bon_livraison",
+        ["expense_report"] = "facture",
+        ["bank_statement"] = "paiement_emis",
+        ["credit_note"] = "avoir",
+        ["quote"] = "devis",
+        ["purchase_order"] = "bon_commande",
+        ["other"] = "facture"
     };
 
     public async Task<ScanUploadResponseDto> UploadAsync(
@@ -59,6 +77,10 @@ public sealed class ScanService(
                 ErrorMessage = "Aucune réponse OCR n'a été reçue."
             };
 
+        normalizedType = NormalizeDocumentType(ocr.DocumentType);
+        if (!document.DocumentType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase))
+            document.ChangerTypeDocument(utilisateurId, normalizedType);
+
         var fields = NormalizeFields(normalizedType, ocr.Fields);
         var missingFields = fields
             .Where(f => f.Required && string.IsNullOrWhiteSpace(f.Value))
@@ -77,7 +99,7 @@ public sealed class ScanService(
         await scannedDocumentRepo.AjouterAsync(document, ct);
         await scannedDocumentRepo.SauvegarderAsync(ct);
 
-        return ToUploadDto(document, fields, missingFields);
+        return ToUploadDto(document, fields, missingFields, ocr);
     }
 
     public async Task<ValidateScanResponseDto> ValidateAsync(
@@ -92,7 +114,11 @@ public sealed class ScanService(
         if (document.EntrepriseId != entrepriseId)
             throw new AccesRefuseException();
 
-        var originalFields = DeserializeFields(document.FieldsJson);
+        var normalizedType = NormalizeDocumentType(request.DocumentType ?? document.DocumentType);
+        if (!document.DocumentType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase))
+            document.ChangerTypeDocument(utilisateurId, normalizedType);
+
+        var originalFields = NormalizeFields(normalizedType, DeserializeFields(document.FieldsJson));
         var updatedFields = ApplyManualValues(originalFields, request.Fields);
         var missingFields = updatedFields
             .Where(f => f.Required && string.IsNullOrWhiteSpace(f.Value))
@@ -172,10 +198,14 @@ public sealed class ScanService(
     private static ScanUploadResponseDto ToUploadDto(
         ScannedDocument document,
         List<ExtractedFieldDto> fields,
-        List<string> missingFields)
+        List<string> missingFields,
+        AccountingOcrResult? ocr)
     {
         var imageUrl = "/" + document.FilePath.Replace("\\", "/").TrimStart('/');
+        var schemaVersion = ocr?.SchemaVersionSnake ?? ocr?.SchemaVersion ?? "1.0";
         return new ScanUploadResponseDto(
+            schemaVersion,
+            schemaVersion,
             document.Id,
             document.DocumentType,
             document.OverallConfidence,
@@ -183,13 +213,19 @@ public sealed class ScanService(
             fields,
             missingFields,
             fields.Any(f => f.RequiresReview),
+            ocr?.Document,
             document.RawText,
+            ocr?.SourceMode ?? "ocr",
+            ocr?.ImageQuality,
             document.ErrorMessage);
     }
 
     private static string NormalizeDocumentType(string? documentType)
     {
         var value = (documentType ?? string.Empty).Trim().ToLowerInvariant();
+        value = value.Replace("-", "_").Replace(" ", "_");
+        if (DocumentTypeAliases.TryGetValue(value, out var alias))
+            value = alias;
         return RequiredFieldsByType.ContainsKey(value)
             ? value
             : throw new ValidationMetierException("Type de document non supporté.");
@@ -238,17 +274,20 @@ public sealed class ScanService(
         List<ExtractedFieldDto> originalFields,
         IEnumerable<ValidateScanFieldRequest>? requestFields)
     {
-        var overrides = (requestFields ?? [])
+        var requestedFields = (requestFields ?? [])
+            .Where(f => !string.IsNullOrWhiteSpace(f.Key))
+            .ToList();
+        var overrides = requestedFields
             .GroupBy(f => f.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Last().Value, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key.Trim(), g => g.Last(), StringComparer.OrdinalIgnoreCase);
 
-        return originalFields
+        var merged = originalFields
             .Select(f =>
             {
-                if (!overrides.TryGetValue(f.Key, out var value))
+                if (!overrides.TryGetValue(f.Key, out var update))
                     return f;
 
-                var clean = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                var clean = string.IsNullOrWhiteSpace(update.Value) ? null : update.Value.Trim();
                 return f with
                 {
                     Value = clean,
@@ -258,15 +297,40 @@ public sealed class ScanService(
                 };
             })
             .ToList();
+
+        foreach (var update in requestedFields)
+        {
+            if (merged.Any(field => field.Key.Equals(update.Key, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var clean = string.IsNullOrWhiteSpace(update.Value) ? null : update.Value.Trim();
+            if (string.IsNullOrWhiteSpace(clean))
+                continue;
+
+            var key = update.Key.Trim();
+            var label = string.IsNullOrWhiteSpace(update.Label)
+                ? BuildDefaultLabel(key)
+                : update.Label.Trim();
+
+            merged.Add(new ExtractedFieldDto(
+                key,
+                label,
+                clean,
+                Math.Clamp(update.Confidence ?? 100, 0, 100),
+                update.Required ?? false,
+                false));
+        }
+
+        return merged;
     }
 
     private static bool ShouldCreateTransaction(string documentType)
         => documentType switch
         {
-            "supplier_invoice" => true,
-            "cash_receipt" => true,
-            "payment_receipt" => true,
-            "expense_report" => true,
+            "facture" => true,
+            "avoir" => true,
+            "paiement_recu" => true,
+            "paiement_emis" => true,
             _ => false
         };
 
@@ -287,6 +351,7 @@ public sealed class ScanService(
         var tiersNom = fournisseurNom ?? ResolveCounterparty(document.DocumentType, values);
         var currency = Read(values, "currency") ?? "TND";
         var date = ResolveDate(values);
+        var transactionType = ResolveTransactionType(document.DocumentType, values);
 
         var transaction = Transaction.Creer(
             entrepriseId: document.EntrepriseId,
@@ -294,7 +359,7 @@ public sealed class ScanService(
             date: date,
             libelle: label,
             montant: amount,
-            type: TypeTransaction.Sortie,
+            type: transactionType,
             devise: currency,
             tiersNom: tiersNom,
             description: $"Document scanné ({document.DocumentType}) depuis l'application mobile.",
@@ -315,11 +380,28 @@ public sealed class ScanService(
         return transaction;
     }
 
+    private static TypeTransaction ResolveTransactionType(string documentType, IReadOnlyDictionary<string, string?> values)
+    {
+        var sens = (Read(values, "trade_sense") ?? string.Empty).Trim().ToLowerInvariant();
+        if (documentType.Equals("avoir", StringComparison.OrdinalIgnoreCase))
+        {
+            if (sens.Contains("vente"))
+                return TypeTransaction.Sortie;
+            if (sens.Contains("achat"))
+                return TypeTransaction.Entree;
+        }
+
+        if (documentType.Equals("paiement_recu", StringComparison.OrdinalIgnoreCase) || sens.Contains("vente"))
+            return TypeTransaction.Entree;
+
+        return TypeTransaction.Sortie;
+    }
+
     private static decimal ResolveAmount(string documentType, IReadOnlyDictionary<string, string?> values)
     {
-        var candidateKeys = documentType.Equals("payment_receipt", StringComparison.OrdinalIgnoreCase)
+        var candidateKeys = documentType.StartsWith("paiement_", StringComparison.OrdinalIgnoreCase)
             ? new[] { "amount", "total_ttc" }
-            : new[] { "total_ttc", "amount", "total_ht" };
+            : new[] { "total_to_pay", "total_ttc", "amount", "net_ht", "total_ht" };
 
         foreach (var key in candidateKeys)
         {
@@ -351,12 +433,25 @@ public sealed class ScanService(
         var counterparty = ResolveCounterparty(documentType, values);
         var baseLabel = documentType switch
         {
+            "facture" => "Facture",
+            "proforma" => "Facture proforma",
+            "avoir" => "Avoir",
+            "devis" => "Devis",
+            "bon_commande" => "Bon de commande",
+            "bon_livraison" => "Bon de livraison",
+            "bon_sortie" => "Bon de sortie",
+            "paiement_recu" => "Paiement reçu",
+            "paiement_emis" => "Paiement émis",
+            "ordre_fabrication" => "Ordre de fabrication",
             "supplier_invoice" => "Facture fournisseur",
             "cash_receipt" => "Ticket de caisse",
             "payment_receipt" => "Reçu de paiement",
             "delivery_note" => "Bon de livraison",
             "expense_report" => "Note de frais",
             "bank_statement" => "Relevé bancaire",
+            "credit_note" => "Avoir",
+            "quote" => "Devis",
+            "purchase_order" => "Bon de commande",
             _ => "Document scanné"
         };
 
@@ -368,12 +463,19 @@ public sealed class ScanService(
     private static string? ResolveCounterparty(string documentType, IReadOnlyDictionary<string, string?> values)
         => documentType switch
         {
+            "paiement_recu" => Read(values, "client_name") ?? Read(values, "supplier_name"),
+            "paiement_emis" => Read(values, "supplier_name") ?? Read(values, "client_name"),
+            "facture" or "proforma" or "avoir" or "devis" or "bon_commande" or "bon_livraison" or "bon_sortie" or "ordre_fabrication"
+                => Read(values, "supplier_name") ?? Read(values, "client_name"),
             "supplier_invoice" => Read(values, "supplier_name"),
             "cash_receipt" => Read(values, "merchant_name"),
             "payment_receipt" => Read(values, "issuer_name") ?? Read(values, "beneficiary_name"),
             "delivery_note" => Read(values, "supplier_name"),
             "expense_report" => Read(values, "expense_owner") ?? Read(values, "expense_type"),
             "bank_statement" => Read(values, "iban"),
+            "credit_note" => Read(values, "supplier_name"),
+            "quote" => Read(values, "supplier_name") ?? Read(values, "client_name"),
+            "purchase_order" => Read(values, "supplier_name") ?? Read(values, "client_name"),
             _ => null
         };
 

@@ -30,12 +30,12 @@ public static class DataSeeder
         var now = DateTime.UtcNow;
 
         var entreprise = Entreprise.Creer(
-            "TunisFlow Demo",
+            "TuniFlow Demo",
             "1234567A/B/M/000",
             "18 Avenue de la Republique",
             "Tunis",
             "1002",
-            "contact@tunisflow.tn",
+            "contact@tuniflow.tn",
             "TVA-1234567",
             RegimeFiscal.Reel);
         entreprise.MettreAJour(
@@ -45,7 +45,7 @@ public static class DataSeeder
             entreprise.CodePostal,
             entreprise.Email,
             "+21671123456",
-            "https://tunisflow.tn",
+            "https://tuniflow.tn",
             RegimeFiscal.Reel);
 
         var motDePasse = "Demo@2026!";
@@ -53,14 +53,14 @@ public static class DataSeeder
         var superAdmin = Utilisateur.Creer(
             "Amina",
             "Trabelsi",
-            "super.admin@tunisflow.tn",
+            "super.admin@tuniflow.tn",
             hasher.Hacher(motDePasse),
             RoleUtilisateur.SuperAdmin);
 
         var admin = Utilisateur.Creer(
             "Karim",
             "Ayari",
-            "admin@tunisflow.tn",
+            "admin@tuniflow.tn",
             hasher.Hacher(motDePasse),
             RoleUtilisateur.Admin,
             entreprise.Id);
@@ -69,7 +69,7 @@ public static class DataSeeder
         var responsable = Utilisateur.Creer(
             "Leila",
             "Ben Salem",
-            "responsable@tunisflow.tn",
+            "responsable@tuniflow.tn",
             hasher.Hacher(motDePasse),
             RoleUtilisateur.ResponsableEntreprise,
             entreprise.Id);
@@ -78,7 +78,7 @@ public static class DataSeeder
         var financier = Utilisateur.Creer(
             "Youssef",
             "Gharbi",
-            "finances@tunisflow.tn",
+            "finances@tuniflow.tn",
             hasher.Hacher(motDePasse),
             RoleUtilisateur.ResponsableFinancier,
             entreprise.Id);
@@ -384,6 +384,7 @@ public static class DataSeeder
         db.Echanges.AddRange(echangePayee, echangePartiel, echangeRejete);
 
         await EnsureAvoirsSeedAsync(db, entreprise, admin, now);
+        await EnsureComptabiliteTestDataAsync(db, entreprise, admin, financier, now);
 
         await db.SaveChangesAsync();
     }
@@ -513,6 +514,7 @@ public static class DataSeeder
 
         await EnsureInvoicesAsync(db, entreprise, auteur, financier, now);
         await EnsureAvoirsSeedAsync(db, entreprise, auteur, now);
+        await EnsureComptabiliteTestDataAsync(db, entreprise, auteur, financier, now);
         await db.SaveChangesAsync();
 
         var score = CalculerScore(db, entreprise.Id);
@@ -556,20 +558,34 @@ public static class DataSeeder
 
     private static async Task EnsureFiscalSettingsAsync(ContextBaseDeDonnees db, Guid entrepriseId)
     {
-        if (!await db.Taxes.AnyAsync(t => t.EntrepriseId == entrepriseId))
+        var taxes = await db.Taxes.Where(t => t.EntrepriseId == entrepriseId).ToListAsync();
+        void AddTaxe(string titre, decimal taux, TypeTaxe type, string description)
         {
-            db.Taxes.AddRange(
-                Taxe.Creer(entrepriseId, "TVA 19%", 19m, TypeTaxe.Tva, "Taux standard"),
-                Taxe.Creer(entrepriseId, "TVA 7%", 7m, TypeTaxe.Tva, "Taux reduit"),
-                Taxe.Creer(entrepriseId, "FODEC", 1m, TypeTaxe.Fodec, "Contribution parafiscale"));
+            if (!taxes.Any(t => t.Titre.Equals(titre, StringComparison.OrdinalIgnoreCase)))
+                db.Taxes.Add(Taxe.Creer(entrepriseId, titre, taux, type, description));
         }
 
-        if (!await db.ParametresFiscaux.AnyAsync(p => p.EntrepriseId == entrepriseId))
+        AddTaxe("TVA 19%", 19m, TypeTaxe.Tva, "Taux normal Tunisie");
+        AddTaxe("TVA 13%", 13m, TypeTaxe.Tva, "Taux intermediaire");
+        AddTaxe("TVA 7%", 7m, TypeTaxe.Tva, "Taux reduit");
+        AddTaxe("FODEC 1%", 1m, TypeTaxe.Fodec, "Contribution parafiscale FODEC");
+        AddTaxe("Droit consommation 5%", 5m, TypeTaxe.DroitConsommation, "Droit de consommation test");
+        AddTaxe("TCL 0.2%", 0.2m, TypeTaxe.DroitConsommation, "Taxe collectivites locales");
+
+        var parametres = await db.ParametresFiscaux.Where(p => p.EntrepriseId == entrepriseId).ToListAsync();
+        void AddParam(string libelle, decimal valeur, TypeParametreFiscal type, SigneParametreFiscal signe, OrdreCalcul ordre, UtilisationParametreFiscal utilisation, bool rs, params string[] docs)
         {
-            db.ParametresFiscaux.AddRange(
-                ParametreFiscal.Creer(entrepriseId, "Retenue a la source", 1.5m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Auto, true, new List<string> { "Facture", "Avoir" }),
-                ParametreFiscal.Creer(entrepriseId, "Timbre fiscal", 1m, TypeParametreFiscal.Fixe, SigneParametreFiscal.Positif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Auto, false, new List<string> { "Facture" }));
+            if (!parametres.Any(p => p.Libelle.Equals(libelle, StringComparison.OrdinalIgnoreCase)))
+                db.ParametresFiscaux.Add(ParametreFiscal.Creer(entrepriseId, libelle, valeur, type, signe, ordre, utilisation, rs, docs.ToList()));
         }
+
+        AddParam("Retenue source 1.5%", 1.5m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Auto, true, "Facture", "Avoir");
+        AddParam("Retenue source 3%", 3m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Manuel, true, "Facture");
+        AddParam("Retenue source 5%", 5m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Manuel, true, "Facture");
+        AddParam("Retenue source 10%", 10m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Manuel, true, "Facture");
+        AddParam("Retenue source 15%", 15m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Manuel, true, "Facture");
+        AddParam("Retenue non resident 30%", 30m, TypeParametreFiscal.Pourcentage, SigneParametreFiscal.Negatif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Manuel, true, "Facture");
+        AddParam("Timbre fiscal", 1m, TypeParametreFiscal.Fixe, SigneParametreFiscal.Positif, OrdreCalcul.ApresTva, UtilisationParametreFiscal.Auto, false, "Facture");
     }
 
     private static async Task EnsurePersonnalisationAsync(ContextBaseDeDonnees db, Entreprise entreprise)
@@ -735,6 +751,111 @@ public static class DataSeeder
         db.Factures.AddRange(liste);
     }
 
+    private static async Task EnsureComptabiliteTestDataAsync(
+        ContextBaseDeDonnees db,
+        Entreprise entreprise,
+        Utilisateur auteur,
+        Utilisateur financier,
+        DateTime now)
+    {
+        await EnsureFiscalSettingsAsync(db, entreprise.Id);
+
+        var fournisseurs = await db.Fournisseurs.Where(f => f.EntrepriseId == entreprise.Id).ToListAsync();
+        void AddFournisseur(string nom, string mf, string adresse, string email, string tel)
+        {
+            if (!fournisseurs.Any(f => f.Nom.Equals(nom, StringComparison.OrdinalIgnoreCase)))
+                db.Fournisseurs.Add(Fournisseur.Creer(entreprise.Id, nom, mf, adresse, "TN59 10 006 0351835984788", email, tel));
+        }
+
+        AddFournisseur("Fournitures Plus SARL", "1102223A/M/000", "Zone industrielle Charguia 1, Tunis", "finance@fournitures-plus.tn", "+21671111000");
+        AddFournisseur("DataCenter Tunisia SA", "2203334B/M/000", "Technopole El Ghazala, Ariana", "billing@datacenter.tn", "+21670000222");
+        AddFournisseur("Amen Bank", "3304445C/M/000", "Avenue Mohamed V, Tunis", "releve@amenbank.tn", "+21671148000");
+        AddFournisseur("CNSS", "4405556D/M/000", "49 Avenue Taieb Mhiri, Tunis", "cnss@social.tn", "+21671796300");
+
+        var existingSeed = await db.Transactions.AnyAsync(t => t.EntrepriseId == entreprise.Id && t.Libelle.StartsWith("[COMPTA-SEED]"));
+        if (!existingSeed)
+        {
+            var operations = new (DateTime date, string libelle, decimal montant, TypeTransaction type, string tiers, string categorie, string compte, DocumentSource source, StatutTransaction statut, StatutJustificatif? justificatif, decimal? tva, decimal? tauxTva)[]
+            {
+                (now.AddDays(-28), "[COMPTA-SEED] Encaissement virement client Carthage Telecom", 18742.500m, TypeTransaction.Entree, "Carthage Telecom", "Ventes B2B", "532000", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-26), "[COMPTA-SEED] Encaissement marche public Ministere du Tourisme", 12860.000m, TypeTransaction.Entree, "Ministere du Tourisme", "Ventes B2G", "532000", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-24), "[COMPTA-SEED] Vente export licence SaaS", 9200.000m, TypeTransaction.Entree, "Client Export", "Export services", "706000", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-22), "[COMPTA-SEED] Achat fournitures administratives OCR", 1547.000m, TypeTransaction.Sortie, "Fournitures Plus SARL", "Achats generaux", "607000", DocumentSource.MobileApp, StatutTransaction.EnAttente, StatutJustificatif.Present, 247.000m, 19m),
+                (now.AddDays(-21), "[COMPTA-SEED] Abonnement hebergement cloud", 3540.250m, TypeTransaction.Sortie, "DataCenter Tunisia SA", "Services IT", "626000", DocumentSource.MobileApp, StatutTransaction.Justifiee, StatutJustificatif.Present, 565.250m, 19m),
+                (now.AddDays(-19), "[COMPTA-SEED] Frais bancaires Amen Bank", 126.500m, TypeTransaction.Sortie, "Amen Bank", "Tresorerie", "627000", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Facultatif, null, null),
+                (now.AddDays(-17), "[COMPTA-SEED] TVA collectee declaration D15", 6840.900m, TypeTransaction.Sortie, "Recette des finances", "Fiscalite TVA", "436700", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-16), "[COMPTA-SEED] Retenue source modele 41", 1385.700m, TypeTransaction.Sortie, "Recette des finances", "Retenue source", "437100", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-15), "[COMPTA-SEED] FODEC a payer", 420.000m, TypeTransaction.Sortie, "Recette des finances", "Fiscalite FODEC", "438600", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-14), "[COMPTA-SEED] TCL a payer", 84.000m, TypeTransaction.Sortie, "Municipalite Tunis", "Fiscalite TCL", "438800", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-12), "[COMPTA-SEED] Salaires equipe finance", 18500.000m, TypeTransaction.Sortie, "Equipe TuniFlow", "Paie", "641100", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-11), "[COMPTA-SEED] Cotisations CNSS", 5120.000m, TypeTransaction.Sortie, "CNSS", "Social", "645100", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null),
+                (now.AddDays(-9), "[COMPTA-SEED] Acquisition serveur comptable", 12400.000m, TypeTransaction.Sortie, "DataCenter Tunisia SA", "Immobilisations", "218300", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, 1980.000m, 19m),
+                (now.AddDays(-7), "[COMPTA-SEED] Dotation amortissement serveur", 4092.000m, TypeTransaction.Sortie, "Interne", "Cloture", "681100", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Facultatif, null, null),
+                (now.AddDays(-5), "[COMPTA-SEED] Justificatif restaurant a reviser", 286.400m, TypeTransaction.Sortie, "Restaurant client", "Reception", "625700", DocumentSource.MobileApp, StatutTransaction.EnAttente, StatutJustificatif.Present, 45.700m, 19m),
+                (now.AddDays(-3), "[COMPTA-SEED] Encaissement carte B2C", 690.000m, TypeTransaction.Entree, "Sana Ben Romdhane", "Ventes B2C", "532000", DocumentSource.Web, StatutTransaction.Justifiee, StatutJustificatif.Present, null, null)
+            };
+
+            foreach (var op in operations)
+            {
+                var tx = Transaction.Creer(
+                    entreprise.Id,
+                    auteur.Id,
+                    op.date,
+                    op.libelle,
+                    op.montant,
+                    op.type,
+                    entreprise.DevisePrincipale,
+                    op.tiers,
+                    op.categorie,
+                    "Jeu de donnees comptable Tunisie pour tests front/back/mobile.",
+                    op.compte,
+                    null,
+                    op.source,
+                    op.statut,
+                    op.justificatif);
+
+                if (op.source == DocumentSource.MobileApp)
+                {
+                    tx.EnregistrerContexteRevision(
+                        auteur.Id,
+                        "Facture fournisseur",
+                        op.statut == StatutTransaction.EnAttente ? 82 : 96,
+                        JsonSerializer.Serialize(new[] { new { key = "montant", confidence = op.statut == StatutTransaction.EnAttente ? 82 : 96 }, new { key = "matriculeFiscal", confidence = 88 } }),
+                        op.statut == StatutTransaction.EnAttente ? JsonSerializer.Serialize(new[] { "compte analytique" }) : "[]",
+                        null,
+                        op.tiers,
+                        null);
+                }
+
+                tx.DefinirAnalytique(
+                    auteur.Id,
+                    op.categorie,
+                    JsonSerializer.Serialize(new[] { new { axe = "Centre", valeur = op.categorie, pourcentage = 100 } }),
+                    $"{op.date:yyyy-MM}",
+                    op.tva,
+                    op.tauxTva);
+                tx.DefinirCommentaires(auteur.Id, JsonSerializer.Serialize(new[] { new { auteur = "Seeder", texte = "Donnee de test comptable." } }));
+                tx.DefinirActivites(auteur.Id, JsonSerializer.Serialize(new[] { new { type = "seed", date = now, libelle = "Creation automatique" } }));
+                if (op.statut == StatutTransaction.Justifiee)
+                    tx.DefinirRapprochementBancaire(auteur.Id, JsonSerializer.Serialize(new { matched = true, score = 94 }));
+
+                db.Transactions.Add(tx);
+            }
+        }
+
+        var today = DateOnly.FromDateTime(now);
+        if (!await db.CalendrierEvents.AnyAsync(e => e.EntrepriseId == entreprise.Id && e.Title.StartsWith("[COMPTA-SEED]")))
+        {
+            db.CalendrierEvents.AddRange(
+                CalendrierEvent.Creer(entreprise.Id, "[COMPTA-SEED] Depot declaration mensuelle D15", today.AddDays(8), "tax", "09:00", "10:00", "Recette des finances", 6840.900m, null, 1440),
+                CalendrierEvent.Creer(entreprise.Id, "[COMPTA-SEED] Controle RS modele 41", today.AddDays(9), "tax", "10:30", "11:30", "Recette des finances", 1385.700m, null, 1440),
+                CalendrierEvent.Creer(entreprise.Id, "[COMPTA-SEED] Rapprochement bancaire mensuel", today.AddDays(12), "task", "14:00", "15:00", "Amen Bank", null, null, 240));
+            db.CalendrierTasks.AddRange(
+                CalendrierTask.Creer(entreprise.Id, "[COMPTA-SEED] Valider factures OCR mobile", today.AddDays(2), "high"),
+                CalendrierTask.Creer(entreprise.Id, "[COMPTA-SEED] Lettrer paiements clients", today.AddDays(4), "medium"),
+                CalendrierTask.Creer(entreprise.Id, "[COMPTA-SEED] Preparer cloture mensuelle", today.AddDays(15), "high"));
+        }
+    }
     private static (int score, object details) CalculerScore(ContextBaseDeDonnees db, Guid entrepriseId)
     {
         var clients = db.Clients.Count(c => c.EntrepriseId == entrepriseId);

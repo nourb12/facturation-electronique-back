@@ -252,22 +252,50 @@ public sealed class ExpenseReviewService(
     private static List<ExtractedFieldDto> MergeReviewFields(string originalJson, IEnumerable<ValidateScanFieldRequest> updates)
     {
         var original = Deserialize<List<ExtractedFieldDto>>(originalJson) ?? [];
-        var overrideMap = (updates ?? [])
+        var updateList = (updates ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .ToList();
+        var overrideMap = updateList
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Last().Value, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key.Trim(), g => g.Last(), StringComparer.OrdinalIgnoreCase);
 
-        return original.Select(field =>
+        var merged = original.Select(field =>
         {
-            if (!overrideMap.TryGetValue(field.Key, out var nextValue))
+            if (!overrideMap.TryGetValue(field.Key, out var update))
                 return field;
 
-            var clean = string.IsNullOrWhiteSpace(nextValue) ? null : nextValue.Trim();
+            var clean = string.IsNullOrWhiteSpace(update.Value) ? null : update.Value.Trim();
             return field with
             {
                 Value = clean,
                 RequiresReview = string.IsNullOrWhiteSpace(clean) || field.Confidence < 70
             };
         }).ToList();
+
+        foreach (var update in updateList)
+        {
+            if (merged.Any(field => field.Key.Equals(update.Key, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var clean = string.IsNullOrWhiteSpace(update.Value) ? null : update.Value.Trim();
+            if (string.IsNullOrWhiteSpace(clean))
+                continue;
+
+            var key = update.Key.Trim();
+            var label = string.IsNullOrWhiteSpace(update.Label)
+                ? key.Replace("_", " ", StringComparison.Ordinal)
+                : update.Label.Trim();
+
+            merged.Add(new ExtractedFieldDto(
+                key,
+                label,
+                clean,
+                Math.Clamp(update.Confidence ?? 100, 0, 100),
+                update.Required ?? false,
+                false));
+        }
+
+        return merged;
     }
 
     private static T? Deserialize<T>(string? json)

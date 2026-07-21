@@ -1,0 +1,34 @@
+{
+  "case_id": "facture_vente_standard",
+  "title": "Facture vente standard",
+  "document_type": "facture",
+  "sample_file": "samples/facture_vente_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.sens",
+    "document.numero",
+    "document.date",
+    "document.emetteur.nom",
+    "document.destinataire.nom",
+    "document.articles[0].designation",
+    "document.totaux.ttc"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "facture",
+      "sens": "vente",
+      "statut_paiement": "en_attente",
+      "numero": "FAC-2026-0045",
+      "date": "08/05/2026",
+      "echeance": "15/06/2026",
+      "mode_reglement": "Chèque",
+      "emetteur": { "nom": "MA SOCIETE SARL", "mf": "7654321XYZ000", "adresse": "Lac 2 Tunis", "iban": null },
+      "destinataire": { "nom": "CLIENT DISTRIBUTION SA", "code_client": "C-7788", "adresse": "Sfax", "telephone": null },
+      "articles": [
+        { "reference": "ART-VENTE-01", "designation": "Produit vendu", "quantite": "3", "prix_unitaire_ht": "250.000", "taux_tva": "19.00", "total_ht": "750.000" }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": "750.000", "tva": "142.500", "timbre": "1.000", "ttc": "893.500", "total_a_payer": "893.500", "devise": "TND" }
+    }
+  }
+}

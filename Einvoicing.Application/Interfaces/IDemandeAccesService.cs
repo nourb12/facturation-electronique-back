@@ -12,4 +12,9 @@ public interface IDemandeAccesService
         string? statut, CancellationToken ct = default);
     Task ValiderDemandeAsync(Guid entrepriseId, CancellationToken ct = default);
     Task RejeterDemandeAsync(Guid entrepriseId, string motif, CancellationToken ct = default);
+    Task DemanderCorrectionsAsync(
+        Guid entrepriseId,
+        IReadOnlyCollection<string> flagCodes,
+        string? messageAdmin,
+        CancellationToken ct = default);
 }

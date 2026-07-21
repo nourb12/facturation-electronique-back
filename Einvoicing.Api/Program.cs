@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.FileProviders;
+using Prometheus;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,8 +27,11 @@ builder.Services.AddDbContext<ContextBaseDeDonnees>(opts =>
     ));
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var secret = jwtSection["Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret manquant dans appsettings.json");
+var secret = jwtSection["Secret"];
+if (string.IsNullOrWhiteSpace(secret) || secret.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase) || secret.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Secret doit etre configure via appsettings.Development.json, variable d'environnement ou secret manager.");
+}
 
 builder.Services
     .AddAuthentication(opts =>
@@ -59,9 +63,6 @@ builder.Services
         };
     });
 
-var allowAll = new AuthorizationPolicyBuilder()
-    .RequireAssertion(_ => true)
-    .Build();
 
 var authenticatedByDefault = new AuthorizationPolicyBuilder()
     .RequireAuthenticatedUser()
@@ -69,12 +70,9 @@ var authenticatedByDefault = new AuthorizationPolicyBuilder()
 
 builder.Services.AddAuthorization(options =>
 {
-    // En d?veloppement on garde un fallback permissif pour fluidifier l'int?gration.
-    // En production, tout endpoint non d?cor? explicitement devient authentifi? par d?faut.
-    var baselinePolicy = builder.Environment.IsProduction() ? authenticatedByDefault : allowAll;
-
-    options.DefaultPolicy = baselinePolicy;
-    options.FallbackPolicy = baselinePolicy;
+    // Toute route non explicitement publique exige un utilisateur authentifie, meme en developpement.
+    options.DefaultPolicy = authenticatedByDefault;
+    options.FallbackPolicy = authenticatedByDefault;
     options.AddPolicy("SuperAdmin", p => p.RequireRole("SuperAdmin"));
     options.AddPolicy("Admin", p => p.RequireRole("SuperAdmin", "Admin"));
     options.AddPolicy("SuperOuAdmin", p => p.RequireRole("SuperAdmin", "Admin"));
@@ -116,6 +114,7 @@ builder.Services.AddScoped<IEchangeTtnService, EchangeTtnService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IRapportService, RapportService>();
 builder.Services.AddScoped<IRelanceService, RelanceService>();
+builder.Services.AddScoped<ICalendrierService, CalendrierService>();
 builder.Services.AddScoped<ISignatureProvider, MockSignatureProvider>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
@@ -151,6 +150,7 @@ builder.Services.AddScoped<IFournisseurRepository, FournisseurRepository>();
 builder.Services.AddScoped<ISignatureRepository, SignatureRepository>();
 builder.Services.AddScoped<IEchangeRepository, EchangeRepository>();
 builder.Services.AddScoped<IDemoRequestRepository, DemoRequestRepository>();
+builder.Services.AddScoped<ICalendrierRepository, CalendrierRepository>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -188,9 +188,28 @@ builder.Services.AddSwaggerGen(opts =>
     }});
 });
 
+var corsAllowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()?
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.Trim())
+    .ToArray();
+
+if (corsAllowedOrigins is null || corsAllowedOrigins.Length == 0)
+{
+    corsAllowedOrigins =
+    [
+        "http://localhost",
+        "http://localhost:4200",
+        "http://127.0.0.1",
+        "http://127.0.0.1:4200",
+        "https://invoice.ey.tn"
+    ];
+}
+
 builder.Services.AddCors(opts =>
     opts.AddPolicy("Angular", p =>
-        p.WithOrigins("http://localhost:4200", "https://invoice.ey.tn")
+        p.WithOrigins(corsAllowedOrigins)
          .AllowAnyHeader()
          .AllowAnyMethod()
          .AllowCredentials()));
@@ -209,6 +228,7 @@ await OcrServiceDevLauncher.EnsureRunningAsync(app.Configuration, app.Environmen
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("Angular");
+app.UseHttpMetrics();
 
 var uploadsRoot = app.Configuration["Uploads:Root"];
 if (string.IsNullOrWhiteSpace(uploadsRoot))
@@ -243,6 +263,24 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapMetrics().AllowAnonymous();
+app.MapGet("/health", async (ContextBaseDeDonnees db) =>
+{
+    try
+    {
+        var databaseOk = await db.Database.CanConnectAsync();
+        return databaseOk
+            ? Results.Ok(new { status = "UP", database = "UP" })
+            : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Database unavailable");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            title: "Health check failed",
+            detail: ex.Message);
+    }
+}).AllowAnonymous();
 app.MapControllers();
 app.Run();
 

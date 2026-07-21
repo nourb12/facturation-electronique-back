@@ -23,3 +23,16 @@ _tmpbuild/
 nuget.temp.config
 logs.txt
 .codex-api-obj/
+
+# Local secrets / machine-specific config
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# Local Docker/env secrets
+.env
+.env.*
+!.env.example
+
+# Local Docker publish output
+.docker/
+.sonarqube/

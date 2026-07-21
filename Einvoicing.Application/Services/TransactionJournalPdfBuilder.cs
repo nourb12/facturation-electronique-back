@@ -200,7 +200,7 @@ internal static class TransactionJournalPdfBuilder
     {
         container.BorderTop(1).BorderColor(Colors.Grey.Lighten2).PaddingTop(6).Row(row =>
         {
-            row.RelativeItem().Text($"Généré le {DateTime.Now:dd/MM/yyyy HH:mm} | TunisFlow | TEIF {entreprise.VersionTeif}")
+            row.RelativeItem().Text($"Généré le {DateTime.Now:dd/MM/yyyy HH:mm} | TuniFlow | TEIF {entreprise.VersionTeif}")
                 .FontSize(8).FontColor(Colors.Grey.Darken2);
             row.ConstantItem(90).AlignRight()
                 .DefaultTextStyle(x => x.FontSize(8).FontColor(Colors.Grey.Darken2))

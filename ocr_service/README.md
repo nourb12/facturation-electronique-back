@@ -1,4 +1,4 @@
-# OCR Service ? TunisFlow
+# OCR Service ? TuniFlow
 
 Microservice OCR local pour l'analyse KYC des documents tunisiens.
 

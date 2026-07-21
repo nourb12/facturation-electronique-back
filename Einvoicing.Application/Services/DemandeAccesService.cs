@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Helpers;
 using Einvoicing.Application.Interfaces;
@@ -225,6 +226,16 @@ public sealed class DemandeAccesService(
                 MatriculeFiscal: ent.MatriculeFiscal,
                 Email: ent.Email,
                 Telephone: ent.Telephone,
+                Adresse: ent.Adresse,
+                Gouvernorat: ent.Ville,
+                CodePostal: ent.CodePostal,
+                SiteWeb: ent.SiteWeb,
+                DevisePrincipale: ent.DevisePrincipale,
+                RespPrenom: u.Prenom,
+                RespNom: u.Nom,
+                RespEmail: u.Email,
+                RespTelephone: u.Telephone,
+                RespFonction: u.Poste,
                 DateDemande: u.CreeLe,
                 Statut: u.Statut.ToString(),
                 ScoreKyc: ent.ScoreKyc,
@@ -248,6 +259,9 @@ public sealed class DemandeAccesService(
 
         if (utilisateur.Statut == StatutCompte.Supprime)
             throw new ValidationMetierException("Ce compte a déjà été supprimé.");
+
+        if (utilisateur.Statut == StatutCompte.Actif)
+            throw new ValidationMetierException("Cette demande est deja acceptee. Le mot de passe existant reste inchange.");
 
         var tempPassword = GenererMotDePasseTemp();
         utilisateur.ChangerMotDePasse(passwordHasher.Hacher(tempPassword));
@@ -287,6 +301,36 @@ public sealed class DemandeAccesService(
             utilisateur.Email, utilisateur.Prenom, entreprise.Nom, motif, ct);
     }
 
+    public async Task DemanderCorrectionsAsync(
+        Guid entrepriseId,
+        IReadOnlyCollection<string> flagCodes,
+        string? messageAdmin,
+        CancellationToken ct = default)
+    {
+        if (flagCodes.Count == 0)
+            throw new ValidationMetierException("Selectionnez au moins un point a corriger.");
+
+        var entreprise = await entrepriseRepo.ObtenirParIdAsync(entrepriseId, ct)
+            ?? throw new NotFoundException("Entreprise introuvable.");
+
+        var utilisateurs = await utilisateurRepo.ListerParEntrepriseAsync(entrepriseId, ct);
+        var utilisateur = utilisateurs.OrderBy(u => u.CreeLe).FirstOrDefault()
+            ?? throw new NotFoundException("Utilisateur introuvable.");
+
+        if (utilisateur.Statut != StatutCompte.EnAttente)
+            throw new ValidationMetierException("Seules les demandes en attente peuvent recevoir une demande de correction.");
+
+        var corrections = ResolveCorrections(entreprise.DonneesScoring, flagCodes);
+
+        await emailService.EnvoyerDemandeCorrectionsAsync(
+            utilisateur.Email,
+            utilisateur.Prenom,
+            entreprise.Nom,
+            corrections,
+            messageAdmin,
+            ct);
+    }
+
     private static string GenererMotDePasseTemp(int length = 10)
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -295,6 +339,74 @@ public sealed class DemandeAccesService(
         for (var i = 0; i < length; i++)
             buffer[i] = chars[bytes[i] % chars.Length];
         return new string(buffer);
+    }
+
+    private static IReadOnlyCollection<string> ResolveCorrections(string? donneesScoring, IReadOnlyCollection<string> flagCodes)
+    {
+        var requested = new HashSet<string>(flagCodes.Where(c => !string.IsNullOrWhiteSpace(c)), StringComparer.OrdinalIgnoreCase);
+        if (requested.Count == 0)
+            return Array.Empty<string>();
+
+        var labels = new List<string>();
+        var resolvedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(donneesScoring))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(donneesScoring);
+                if (doc.RootElement.TryGetProperty("flags", out var flags) && flags.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var flag in flags.EnumerateArray())
+                    {
+                        if (flag.ValueKind == JsonValueKind.String)
+                        {
+                            var stringCode = flag.GetString();
+                            if (!string.IsNullOrWhiteSpace(stringCode) && requested.Contains(stringCode))
+                            {
+                                labels.Add(FormatCorrection(stringCode, null));
+                                resolvedCodes.Add(stringCode);
+                            }
+                            continue;
+                        }
+
+                        if (flag.ValueKind != JsonValueKind.Object)
+                            continue;
+
+                        var code = flag.TryGetProperty("code", out var codeProp) ? codeProp.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(code) || !requested.Contains(code))
+                            continue;
+
+                        var message = flag.TryGetProperty("message", out var messageProp) ? messageProp.GetString() : null;
+                        labels.Add(FormatCorrection(code, message));
+                        resolvedCodes.Add(code);
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback below: keep sending a useful email even if scoring JSON is legacy/corrupted.
+            }
+        }
+
+        foreach (var code in requested)
+        {
+            if (!resolvedCodes.Contains(code))
+                labels.Add(FormatCorrection(code, null));
+        }
+
+        return labels;
+    }
+
+    private static string FormatCorrection(string code, string? message)
+    {
+        var readableCode = Regex
+            .Replace(code.Replace('_', ' ').Replace('-', ' '), "([a-z])([A-Z])", "$1 $2")
+            .Trim();
+        var title = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(readableCode);
+        return string.IsNullOrWhiteSpace(message)
+            ? title
+            : $"{title} : {message.Trim()}";
     }
 
     private static RoleUtilisateur DeterminerRoleResponsable(string? poste)

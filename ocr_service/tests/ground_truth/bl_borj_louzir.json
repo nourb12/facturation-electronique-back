@@ -1,0 +1,68 @@
+{
+  "case_id": "bl_borj_louzir",
+  "title": "Bon de livraison BORJ LOUZIR",
+  "document_type": "bon_livraison",
+  "sample_file": "C:/Users/nourb/Downloads/WhatsApp Image 2026-05-10 at 12.49.56.jpeg",
+  "required_paths": [
+    "document.type",
+    "document.numero",
+    "document.date",
+    "document.emetteur.nom",
+    "document.emetteur.mf",
+    "document.destinataire.nom",
+    "document.destinataire.code_client",
+    "document.articles[0].reference",
+    "document.articles[0].designation",
+    "document.articles[0].quantite",
+    "document.totaux.brut_ht",
+    "document.totaux.remise",
+    "document.totaux.net_ht",
+    "document.totaux.tva",
+    "document.totaux.ttc"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "bon_livraison",
+      "sens": "achat",
+      "statut_paiement": "en_attente",
+      "numero": "202501069",
+      "date": "17/02/2025",
+      "echeance": null,
+      "mode_reglement": null,
+      "emetteur": {
+        "nom": "STE BORJ LOUZIR QUINCAILLERIE",
+        "mf": "1287331MBM000",
+        "adresse": "57 AV MUSTAPHA MOHSEN",
+        "iban": null
+      },
+      "destinataire": {
+        "nom": "NIDOR AGENEMENT",
+        "code_client": "858522228",
+        "adresse": null,
+        "telephone": "97857022"
+      },
+      "articles": [
+        {
+          "reference": "005S5T-10M",
+          "designation": "SONGLES 5 TON 10MET IMP",
+          "quantite": "48",
+          "prix_unitaire_ht": "43.000",
+          "remise": "15.96",
+          "taux_tva": "19.00",
+          "total_ht": "1734.586"
+        }
+      ],
+      "totaux": {
+        "brut_ht": "2064.000",
+        "remise": "329.414",
+        "net_ht": "1734.586",
+        "tva": "329.571",
+        "timbre": null,
+        "ttc": "2064.157",
+        "total_a_payer": "2064.157",
+        "devise": "TND"
+      }
+    }
+  }
+}

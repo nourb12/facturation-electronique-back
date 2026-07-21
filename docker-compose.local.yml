@@ -1,0 +1,100 @@
+name: tuniflow
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tuniflow-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-einvoicing_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  ocr-api:
+    build:
+      context: ./ocr_service
+      dockerfile: Dockerfile
+    image: tuniflow-ocr-api:latest
+    container_name: tuniflow-ocr-api
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: tuniflow-backend-api
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "5051:8080"
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ocr-api:
+        condition: service_healthy
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../frontendpfe/ey-invoice-portal
+      dockerfile: Dockerfile.local
+    container_name: tuniflow-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend-api
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: tuniflow-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-einvoicing_db}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  backend_uploads:
+
+networks:
+  tuniflow-platform:
+    name: tuniflow-platform
+    external: true

@@ -1,0 +1,32 @@
+{
+  "case_id": "paiement_recu_standard",
+  "title": "Paiement recu standard",
+  "document_type": "paiement_recu",
+  "sample_file": "samples/paiement_recu_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.sens",
+    "document.statut_paiement",
+    "document.numero",
+    "document.date",
+    "document.mode_reglement",
+    "document.destinataire.nom",
+    "document.totaux.total_a_payer"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "paiement_recu",
+      "sens": "vente",
+      "statut_paiement": "paye",
+      "numero": "ENC-2026-0105",
+      "date": "10/05/2026",
+      "echeance": null,
+      "mode_reglement": "Virement",
+      "emetteur": { "nom": "MA SOCIETE SARL", "mf": "7654321XYZ000", "adresse": "Lac 2 Tunis", "iban": null },
+      "destinataire": { "nom": "CLIENT DISTRIBUTION SA", "code_client": "C-7788", "adresse": null, "telephone": null },
+      "articles": [],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": null, "tva": null, "timbre": null, "ttc": "893.500", "total_a_payer": "893.500", "devise": "TND" }
+    }
+  }
+}

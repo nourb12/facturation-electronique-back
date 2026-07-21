@@ -14,7 +14,10 @@ internal static class FacturePdfBuilder
         string FooterText,
         string? Iban,
         bool ShowIban,
-        byte[]? LogoBytes
+        byte[]? LogoBytes,
+        bool ShowSignature,
+        byte[]? SignatureBytes,
+        byte[]? CachetBytes
     );
 
     public static byte[] Generate(
@@ -47,6 +50,9 @@ internal static class FacturePdfBuilder
 
                     if (HasAdditionalInfo(facture, settings))
                         col.Item().Element(c => ComposeAdditionalInfo(c, facture, settings));
+
+                    if (settings.ShowSignature)
+                        col.Item().Element(c => ComposeSignature(c, settings));
                 });
 
                 page.Footer().Element(c => ComposeFooter(c, entreprise, settings));
@@ -63,9 +69,12 @@ internal static class FacturePdfBuilder
         string? iban = null;
         var showIban = false;
         var logoBytes = TryExtractImageBytes(entreprise.LogoUrl);
+        var showSignature = true;
+        byte[]? signatureBytes = null;
+        byte[]? cachetBytes = null;
 
         if (string.IsNullOrWhiteSpace(personnalisationJson))
-            return new PdfSettings(accentColor, footerText, iban, showIban, logoBytes);
+            return new PdfSettings(accentColor, footerText, iban, showIban, logoBytes, showSignature, signatureBytes, cachetBytes);
 
         try
         {
@@ -75,6 +84,11 @@ internal static class FacturePdfBuilder
             footerText = GetString(pdf?["footerText"])?.Trim() ?? string.Empty;
             iban = GetString(pdf?["iban"])?.Trim();
             showIban = GetBool(pdf?["options"]?["showIban"]);
+            showSignature = GetBool(pdf?["signatureActive"], true)
+                && GetBool(pdf?["options"]?["showSignature"], true);
+            signatureBytes = TryExtractImageBytes(
+                GetString(pdf?["signatureUrl"]) ?? GetString(pdf?["sigImageUrl"]));
+            cachetBytes = TryExtractImageBytes(GetString(pdf?["cachetUrl"]));
 
             var showLogo = GetBool(pdf?["options"]?["showLogo"], true);
             if (showLogo)
@@ -92,7 +106,7 @@ internal static class FacturePdfBuilder
         {
         }
 
-        return new PdfSettings(accentColor, footerText, iban, showIban, logoBytes);
+        return new PdfSettings(accentColor, footerText, iban, showIban, logoBytes, showSignature, signatureBytes, cachetBytes);
     }
 
     private static void ComposeHeader(IContainer container, Facture facture, Entreprise entreprise, PdfSettings settings)
@@ -268,11 +282,24 @@ internal static class FacturePdfBuilder
                 row.RelativeItem().Text("Total TVA");
                 row.ConstantItem(110).AlignRight().Text(Money(facture.TotalTva, facture.Devise, culture));
             });
+            col.Item().Row(row =>
+            {
+                row.RelativeItem().Text("Total TTC");
+                row.ConstantItem(110).AlignRight().Text(Money(facture.TotalTtc, facture.Devise, culture));
+            });
+            if (facture.AppliquerRS && facture.MontantRS > 0)
+            {
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Text($"RS ({facture.TauxRS:N3}%)").FontColor(Colors.Red.Darken1);
+                    row.ConstantItem(110).AlignRight().Text($"- {Money(facture.MontantRS, facture.Devise, culture)}").FontColor(Colors.Red.Darken1);
+                });
+            }
             col.Item().Background(settings.AccentColor).Padding(6).Row(row =>
             {
-                row.RelativeItem().Text("Total TTC").FontColor(Colors.White).SemiBold();
+                row.RelativeItem().Text(facture.AppliquerRS ? "Net a payer" : "Total TTC").FontColor(Colors.White).SemiBold();
                 row.ConstantItem(110).AlignRight()
-                    .Text(Money(facture.TotalTtc, facture.Devise, culture))
+                    .Text(Money(facture.NetAPayer, facture.Devise, culture))
                     .FontColor(Colors.White).SemiBold();
             });
         });
@@ -320,13 +347,41 @@ internal static class FacturePdfBuilder
         });
     }
 
+    private static void ComposeSignature(IContainer container, PdfSettings settings)
+    {
+        container.PaddingTop(10).AlignRight().Width(260).Row(row =>
+        {
+            if (settings.CachetBytes is not null)
+            {
+                row.ConstantItem(98).Height(70).Border(1).BorderColor(Colors.Grey.Lighten2)
+                    .Padding(5).AlignCenter().AlignMiddle().Image(settings.CachetBytes).FitArea();
+                row.ConstantItem(12);
+            }
+
+            row.RelativeItem().Height(70).Border(1).BorderColor(Colors.Grey.Lighten2)
+                .Padding(5).Column(col =>
+                {
+                    col.Item().Text("Signature").FontSize(8).FontColor(Colors.Grey.Darken2).SemiBold();
+                    if (settings.SignatureBytes is not null)
+                    {
+                        col.Item().Height(45).AlignCenter().AlignMiddle().Image(settings.SignatureBytes).FitArea();
+                    }
+                    else
+                    {
+                        col.Item().AlignCenter().AlignMiddle().Text("Ajouter signature")
+                            .FontSize(9).FontColor(Colors.Grey.Darken1);
+                    }
+                });
+        });
+    }
+
     private static string Money(decimal value, string devise, CultureInfo culture)
         => $"{value.ToString("N3", culture)} {devise}";
 
     private static void ComposeFooter(IContainer container, Entreprise entreprise, PdfSettings settings)
     {
         var footer = string.IsNullOrWhiteSpace(settings.FooterText)
-            ? $"Genere le {DateTime.Now:dd/MM/yyyy HH:mm} | TunisFlow | TEIF {entreprise.VersionTeif}"
+            ? $"Genere le {DateTime.Now:dd/MM/yyyy HH:mm} | TuniFlow | TEIF {entreprise.VersionTeif}"
             : $"{settings.FooterText} | Genere le {DateTime.Now:dd/MM/yyyy HH:mm}";
 
         container.BorderTop(1).BorderColor(Colors.Grey.Lighten2).PaddingTop(6).Row(row =>

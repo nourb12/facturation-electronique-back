@@ -110,15 +110,18 @@ public sealed class AuthService(
     
     
 
-    public async Task<object> ConnecterAsync(
+    public async Task<LoginResult> ConnecterAsync(
         LoginRequest req, string? ip, string? userAgent, CancellationToken ct = default)
     {
-        var cleRate = $"login:{req.Email.ToLower()}";
+        var email = req.Email.ToLower().Trim();
+
+        var cleRate = req.AdminConsole && !string.IsNullOrWhiteSpace(ip)
+            ? $"admin-login:{email}:{ip}"
+            : $"login:{email}";
         if (rateLimiter.EstBloque(cleRate))
             throw new TropDeTentativesException(900);
 
-        var utilisateur = await utilisateurRepo.ObtenirParEmailAsync(req.Email.ToLower(), ct)
-            ?? throw new IdentifiantsInvalidesException();
+        var utilisateur = await utilisateurRepo.ObtenirParEmailAsync(email, ct)?? throw new IdentifiantsInvalidesException();
 
         if (!passwordHasher.Verifier(req.MotDePasse, utilisateur.MotDePasseHash))
         {
@@ -128,6 +131,9 @@ public sealed class AuthService(
 
         if (!utilisateur.PeutSeConnecter())
             throw new CompteInactifException();
+
+        if (req.AdminConsole && utilisateur.Role != RoleUtilisateur.SuperAdmin)
+            throw new AccesRefuseException("Acces reserve aux administrateurs systeme.");
 
         rateLimiter.Reinitialiser(cleRate);
         utilisateur.EnregistrerConnexion();

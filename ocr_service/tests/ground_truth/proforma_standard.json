@@ -1,0 +1,32 @@
+{
+  "case_id": "proforma_standard",
+  "title": "Facture proforma standard",
+  "document_type": "proforma",
+  "sample_file": "samples/proforma_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.numero",
+    "document.date",
+    "document.emetteur.nom",
+    "document.destinataire.nom",
+    "document.totaux.ttc"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "proforma",
+      "sens": "vente",
+      "statut_paiement": null,
+      "numero": "PRO-2026-0011",
+      "date": "07/05/2026",
+      "echeance": null,
+      "mode_reglement": "Comptant",
+      "emetteur": { "nom": "EXPORT TEST SARL", "mf": "1112223EXP000", "adresse": "Tunis", "iban": null },
+      "destinataire": { "nom": "CLIENT EXPORT", "code_client": null, "adresse": "Paris", "telephone": null },
+      "articles": [
+        { "reference": "EXP-01", "designation": "Marchandise export", "quantite": "5", "prix_unitaire_ht": "300.000", "taux_tva": "0.00", "total_ht": "1500.000" }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": "1500.000", "tva": "0.000", "timbre": null, "ttc": "1500.000", "total_a_payer": "1500.000", "devise": "TND" }
+    }
+  }
+}

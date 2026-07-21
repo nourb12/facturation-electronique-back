@@ -110,12 +110,12 @@ public class FactureServiceTests
             "1234567ABM000");
 
         var entreprise = Entreprise.Creer(
-            "TunisFlow Demo",
+            "TuniFlow Demo",
             "1234567ABM000",
             "1 rue de Tunis",
             "Tunis",
             "1000",
-            "contact@tunisflow.tn",
+            "contact@tuniflow.tn",
             "TVA001",
             RegimeFiscal.Reel);
 

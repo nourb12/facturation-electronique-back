@@ -26,6 +26,12 @@ public sealed class Facture
     public decimal TotalTva { get; private set; }
     public decimal TotalTtc { get; private set; }
     public decimal MontantPaye { get; private set; }
+    public bool AppliquerRS { get; private set; }
+    public string? CodeRS { get; private set; }
+    public decimal TauxRS { get; private set; }
+    public decimal BaseRS { get; private set; }
+    public decimal MontantRS { get; private set; }
+    public decimal NetAPayer { get; private set; }
 
     public string? Notes { get; private set; }
     public string? ConditionsPaiement { get; private set; }
@@ -59,6 +65,9 @@ public sealed class Facture
         string? notes = null,
         string? conditionsPaiement = null,
         string devise = "TND",
+        bool appliquerRS = false,
+        string? codeRS = null,
+        decimal tauxRS = 0,
         Guid? factureOrigineId = null)
     {
         if (dateEcheance.Date < DateTime.UtcNow.Date)
@@ -80,6 +89,9 @@ public sealed class Facture
             DateEcheance = dateEcheance,
             Notes = notes?.Trim(),
             ConditionsPaiement = conditionsPaiement?.Trim(),
+            AppliquerRS = appliquerRS,
+            CodeRS = string.IsNullOrWhiteSpace(codeRS) ? null : codeRS.Trim(),
+            TauxRS = appliquerRS ? Math.Round(tauxRS, 3) : 0,
             FactureOrigineId = factureOrigineId,
             TotalHt = 0,
             TotalTva = 0,
@@ -119,7 +131,8 @@ public sealed class Facture
 
     public void MettreAJourInfos(
         ModePaiement modePaiement, DateTime dateEcheance,
-        string? reference, string? notes, string? conditionsPaiement)
+        string? reference, string? notes, string? conditionsPaiement,
+        bool appliquerRS = false, string? codeRS = null, decimal tauxRS = 0)
     {
         if (Statut != StatutFacture.Brouillon)
             throw new ValidationMetierException("Impossible de modifier une facture hors brouillon.");
@@ -132,6 +145,10 @@ public sealed class Facture
         Reference = reference?.Trim();
         Notes = notes?.Trim();
         ConditionsPaiement = conditionsPaiement?.Trim();
+        AppliquerRS = appliquerRS;
+        CodeRS = string.IsNullOrWhiteSpace(codeRS) ? null : codeRS.Trim();
+        TauxRS = appliquerRS ? Math.Round(tauxRS, 3) : 0;
+        RecalculerTotaux();
         ModifieLe = DateTime.UtcNow;
     }
 
@@ -233,9 +250,9 @@ public sealed class Facture
 
         MontantPaye = Math.Round(MontantPaye + montant, 3);
 
-        if (MontantPaye >= TotalTtc)
+        if (MontantPaye >= NetAPayer)
         {
-            MontantPaye = TotalTtc;
+            MontantPaye = NetAPayer;
             Statut = StatutFacture.Payee;
             DatePaiement = DateTime.UtcNow;
             _historique.Add(HistoriqueFacture.Creer(
@@ -247,7 +264,7 @@ public sealed class Facture
             Statut = StatutFacture.PartiellemementPayee;
             _historique.Add(HistoriqueFacture.Creer(
                 Id, enregistrePar, "Paiement partiel",
-                $"Paiement de {montant:N3} {Devise} reçu. Reste : {TotalTtc - MontantPaye:N3} {Devise}."));
+                $"Paiement de {montant:N3} {Devise} reçu. Reste : {NetAPayer - MontantPaye:N3} {Devise}."));
         }
 
         ModifieLe = DateTime.UtcNow;
@@ -272,9 +289,12 @@ public sealed class Facture
         TotalHt = Math.Round(_lignes.Sum(l => l.MontantHt), 3);
         TotalTva = Math.Round(_lignes.Sum(l => l.MontantTva), 3);
         TotalTtc = Math.Round(TotalHt + TotalTva, 3);
+        BaseRS = AppliquerRS ? TotalHt : 0;
+        MontantRS = AppliquerRS ? Math.Round(BaseRS * TauxRS / 100m, 3) : 0;
+        NetAPayer = Math.Round(Math.Max(0, TotalTtc - MontantRS), 3);
     }
 
-    public decimal MontantRestant => Math.Round(TotalTtc - MontantPaye, 3);
+    public decimal MontantRestant => Math.Round(NetAPayer - MontantPaye, 3);
     public bool EstEnRetard => DateEcheance.Date < DateTime.UtcNow.Date
         && Statut != StatutFacture.Payee
         && Statut != StatutFacture.Annulee;

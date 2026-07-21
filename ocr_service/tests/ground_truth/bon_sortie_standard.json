@@ -1,0 +1,32 @@
+{
+  "case_id": "bon_sortie_standard",
+  "title": "Bon de sortie standard",
+  "document_type": "bon_sortie",
+  "sample_file": "samples/bon_sortie_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.numero",
+    "document.date",
+    "document.articles[0].reference",
+    "document.articles[0].designation",
+    "document.articles[0].quantite"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "bon_sortie",
+      "sens": null,
+      "statut_paiement": null,
+      "numero": "BS-2026-0018",
+      "date": "11/05/2026",
+      "echeance": null,
+      "mode_reglement": null,
+      "emetteur": { "nom": "MAGASIN CENTRAL", "mf": null, "adresse": null, "iban": null },
+      "destinataire": { "nom": "CHANTIER TEST", "code_client": null, "adresse": null, "telephone": null },
+      "articles": [
+        { "reference": "OUT-55", "designation": "Piece de rechange", "quantite": "12", "prix_unitaire_ht": null, "taux_tva": null, "total_ht": null }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": null, "tva": null, "timbre": null, "ttc": null, "total_a_payer": null, "devise": "TND" }
+    }
+  }
+}

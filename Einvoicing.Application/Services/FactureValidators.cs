@@ -14,6 +14,7 @@ public class CreerFactureValidator : AbstractValidator<CreerFactureRequest>
         RuleFor(x => x.Devise).NotEmpty().MaximumLength(3);
         RuleFor(x => x.Lignes)
             .NotEmpty().WithMessage("La facture doit contenir au moins une ligne.");
+        RuleFor(x => x.TauxRS).InclusiveBetween(0, 100);
         RuleForEach(x => x.Lignes).SetValidator(new CreerLigneFactureValidator());
     }
 }
@@ -39,6 +40,7 @@ public class MettreAJourFactureValidator : AbstractValidator<MettreAJourFactureR
     {
         RuleFor(x => x.DateEcheance).NotEmpty();
         RuleFor(x => x.Lignes).NotEmpty();
+        RuleFor(x => x.TauxRS).InclusiveBetween(0, 100);
         RuleForEach(x => x.Lignes).SetValidator(new CreerLigneFactureValidator());
     }
 }

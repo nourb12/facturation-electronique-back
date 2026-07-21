@@ -71,7 +71,7 @@ public sealed class TotpService : ITotpService
 
 public sealed class InMemoryRateLimiter : IRateLimiter
 {
-    private const int MaxTentatives = 5;
+    private const int MaxTentatives = 3;
     private static readonly TimeSpan Fenetre = TimeSpan.FromMinutes(15);
 
     private readonly record struct Entree(int Compteur, DateTime PremierEssai);

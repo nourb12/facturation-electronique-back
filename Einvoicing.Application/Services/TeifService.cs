@@ -130,6 +130,7 @@ public sealed class TeifService(
             facture.ModePaiement.ToString(), facture.Devise,
             facture.DateEmission, facture.DateEcheance, facture.DatePaiement,
             facture.TotalHt, facture.TotalTva, facture.TotalTtc,
+            facture.AppliquerRS, facture.CodeRS, facture.TauxRS, facture.BaseRS, facture.MontantRS, facture.NetAPayer,
             facture.MontantPaye, facture.MontantRestant, facture.EstEnRetard,
             facture.Notes, facture.ConditionsPaiement,
             !string.IsNullOrEmpty(facture.XmlTeif),

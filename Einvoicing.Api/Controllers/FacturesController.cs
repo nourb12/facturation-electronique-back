@@ -165,6 +165,19 @@ public sealed class FacturesController(
         return Ok(result);
     }
 
+    [HttpPost("{id:guid}/convertir-facture")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(FactureDto), 201)]
+    public async Task<IActionResult> ConvertirEnFacture(
+        Guid id, [FromBody] ConvertirFactureRequest? req, CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var eId, out var uId);
+        if (guard is not null) return guard;
+
+        var result = await factureService.ConvertirEnFactureAsync(id, eId, uId, req ?? new(), ct);
+        return CreatedAtAction(nameof(ObtenirParId), new { id = result.Id }, result);
+    }
+
     [HttpGet("statistiques")]
     [ProducesResponseType(typeof(StatistiquesFacturesDto), 200)]
     public async Task<IActionResult> Statistiques(CancellationToken ct)

@@ -107,7 +107,7 @@ public sealed class DashboardService(
                 f.Id, f.Numero, "-",
                 f.Statut.ToString(), f.TypeFacture.ToString(),
                 f.DateEmission, f.DateEcheance,
-                f.TotalTtc, f.MontantPaye,
+                f.TotalTtc, f.AppliquerRS, f.MontantRS, f.NetAPayer, f.MontantPaye,
                 f.EstEnRetard, f.Devise))
             .ToList();
 

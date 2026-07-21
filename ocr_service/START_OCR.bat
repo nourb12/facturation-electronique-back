@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   Demarrage du service OCR TunisFlow
+echo   Demarrage du service OCR TuniFlow
 echo ========================================
 echo.
 

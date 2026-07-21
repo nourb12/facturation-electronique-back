@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
 import re
@@ -123,12 +124,17 @@ class AccountingFieldResult(BaseModel):
 
 
 class AccountingOcrExtractionResult(BaseModel):
+    schemaVersion: str = "1.0"
+    schema_version: str = "1.0"
     ocrSuccess: bool
     overallConfidence: int
     documentType: str
     fields: list[AccountingFieldResult] = []
     missingFields: list[str] = []
+    document: dict[str, object] = {}
     rawText: str = ""
+    sourceMode: str = "ocr"
+    imageQuality: dict[str, object] = {}
     errorMessage: str | None = None
 
 
@@ -387,6 +393,69 @@ def preprocess_image(image_rgb: np.ndarray) -> tuple[np.ndarray, dict[str, float
 
     out = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
     return out, {"blur_score": blur_score}
+
+
+def assess_image_quality(image_rgb: np.ndarray) -> dict[str, object]:
+    height, width = image_rgb.shape[:2]
+    result: dict[str, object] = {
+        "width": int(width),
+        "height": int(height),
+        "score": 70,
+        "warnings": [],
+    }
+    warnings: list[str] = []
+
+    if cv2 is None or image_rgb.ndim != 3:
+        result["warnings"] = ["Qualité image non mesurable."]
+        return result
+
+    gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+    blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    brightness = float(np.mean(gray))
+    contrast = float(np.std(gray))
+    min_side = min(width, height)
+
+    score = 100
+    if min_side < 900:
+        score -= 25
+        warnings.append("Résolution faible.")
+    if blur_score < 80:
+        score -= 35
+        warnings.append("Photo floue.")
+    elif blur_score < 140:
+        score -= 15
+        warnings.append("Netteté moyenne.")
+    if brightness < 65 or brightness > 220:
+        score -= 15
+        warnings.append("Luminosité difficile.")
+    if contrast < 35:
+        score -= 15
+        warnings.append("Contraste faible.")
+
+    result.update(
+        {
+            "score": max(0, min(100, int(score))),
+            "blurScore": round(blur_score, 1),
+            "brightness": round(brightness, 1),
+            "contrast": round(contrast, 1),
+            "warnings": warnings,
+        }
+    )
+    return result
+
+
+def merge_image_quality(qualities: Sequence[dict[str, object]], *, native_pdf: bool = False) -> dict[str, object]:
+    if native_pdf:
+        return {"score": 100, "warnings": [], "source": "native_pdf"}
+    if not qualities:
+        return {"score": 0, "warnings": ["Aucune page image analysée."], "source": "unknown"}
+    score = int(round(sum(int(q.get("score", 0)) for q in qualities) / len(qualities)))
+    warnings: list[str] = []
+    for quality in qualities:
+        for warning in quality.get("warnings", []):
+            if isinstance(warning, str) and warning not in warnings:
+                warnings.append(warning)
+    return {"score": score, "warnings": warnings, "pages": list(qualities), "source": "image_ocr"}
 
 
 def ocr_image(image: np.ndarray) -> list[OcrLine]:
@@ -707,6 +776,98 @@ SUPPORTED_ACCOUNTING_TYPES: dict[str, dict[str, object]] = {
     },
 }
 
+COMMON_DOCUMENT_LABELS: dict[str, str] = {
+    "trade_sense": "Achat / Vente",
+    "payment_status": "Statut paiement",
+    "document_number": "Numéro document",
+    "invoice_number": "Numéro facture",
+    "delivery_note_number": "Numéro BL",
+    "order_reference": "Référence commande",
+    "reference": "Référence",
+    "issue_date": "Date",
+    "due_date": "Échéance",
+    "supplier_name": "Émetteur / Fournisseur",
+    "supplier_tax_id": "MF émetteur",
+    "supplier_address": "Adresse émetteur",
+    "client_name": "Destinataire / Client",
+    "client_code": "Code client",
+    "client_address": "Adresse destinataire",
+    "client_phone": "Téléphone destinataire",
+    "payment_method": "Mode de règlement",
+    "brut_ht": "Brut HT",
+    "remise_amount": "Remise",
+    "net_ht": "Net HT",
+    "total_ht": "Total HT",
+    "total_tva": "Total TVA",
+    "timbre": "Timbre",
+    "total_ttc": "Total TTC",
+    "total_to_pay": "Total à payer",
+    "amount": "Montant",
+    "currency": "Devise",
+    "articles": "Articles",
+}
+
+
+def labels_for(*keys: str) -> dict[str, str]:
+    return {key: COMMON_DOCUMENT_LABELS[key] for key in keys}
+
+
+SUPPORTED_ACCOUNTING_TYPES = {
+    "facture": {
+        "required": ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc", "trade_sense", "payment_status"],
+        "labels": labels_for("trade_sense", "payment_status", "document_number", "invoice_number", "issue_date", "due_date", "supplier_name", "supplier_tax_id", "supplier_address", "client_name", "client_code", "client_address", "payment_method", "total_ht", "total_tva", "timbre", "total_ttc", "total_to_pay", "currency", "articles"),
+    },
+    "proforma": {
+        "required": ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc", "trade_sense"],
+        "labels": labels_for("trade_sense", "document_number", "invoice_number", "issue_date", "due_date", "supplier_name", "supplier_tax_id", "client_name", "client_code", "payment_method", "total_ht", "total_tva", "total_ttc", "total_to_pay", "currency", "articles"),
+    },
+    "avoir": {
+        "required": ["document_number", "issue_date", "supplier_name", "total_ttc", "trade_sense", "payment_status"],
+        "labels": labels_for("trade_sense", "payment_status", "document_number", "reference", "issue_date", "supplier_name", "supplier_tax_id", "client_name", "total_ht", "total_tva", "total_ttc", "total_to_pay", "currency", "articles"),
+    },
+    "devis": {
+        "required": ["document_number", "issue_date", "supplier_name", "client_name", "total_ttc"],
+        "labels": labels_for("document_number", "reference", "issue_date", "due_date", "supplier_name", "supplier_tax_id", "client_name", "client_code", "total_ht", "total_tva", "total_ttc", "total_to_pay", "currency", "articles"),
+    },
+    "bon_commande": {
+        "required": ["document_number", "issue_date", "supplier_name", "client_name"],
+        "labels": labels_for("trade_sense", "document_number", "order_reference", "issue_date", "due_date", "supplier_name", "supplier_tax_id", "client_name", "client_code", "payment_method", "total_ht", "total_tva", "total_ttc", "currency", "articles"),
+    },
+    "bon_livraison": {
+        "required": ["document_number", "issue_date", "supplier_name", "client_name"],
+        "labels": labels_for("trade_sense", "payment_status", "document_number", "delivery_note_number", "order_reference", "issue_date", "due_date", "supplier_name", "supplier_tax_id", "supplier_address", "client_name", "client_code", "client_address", "client_phone", "payment_method", "brut_ht", "remise_amount", "net_ht", "total_tva", "timbre", "total_ttc", "total_to_pay", "currency", "articles"),
+    },
+    "bon_sortie": {
+        "required": ["document_number", "issue_date"],
+        "labels": labels_for("document_number", "issue_date", "supplier_name", "client_name", "order_reference", "articles"),
+    },
+    "paiement_recu": {
+        "required": ["document_number", "issue_date", "amount", "payment_status"],
+        "labels": labels_for("payment_status", "document_number", "reference", "issue_date", "supplier_name", "client_name", "payment_method", "amount", "currency"),
+    },
+    "paiement_emis": {
+        "required": ["document_number", "issue_date", "amount", "payment_status"],
+        "labels": labels_for("payment_status", "document_number", "reference", "issue_date", "supplier_name", "client_name", "payment_method", "amount", "currency"),
+    },
+    "ordre_fabrication": {
+        "required": ["document_number", "issue_date"],
+        "labels": labels_for("document_number", "issue_date", "supplier_name", "client_name", "order_reference", "articles"),
+    },
+}
+
+ACCOUNTING_TYPE_ALIASES = {
+    "supplier_invoice": "facture",
+    "cash_receipt": "facture",
+    "payment_receipt": "paiement_recu",
+    "delivery_note": "bon_livraison",
+    "expense_report": "facture",
+    "bank_statement": "paiement_emis",
+    "credit_note": "avoir",
+    "quote": "devis",
+    "purchase_order": "bon_commande",
+    "other": "facture",
+}
+
 GENERIC_STOPWORDS = {
     "FACTURE", "INVOICE", "TICKET", "RECU", "REÇU", "DELIVERY", "BON",
     "TVA", "HT", "TTC", "TOTAL", "DATE", "HEURE", "MERCI", "CLIENT",
@@ -716,6 +877,32 @@ GENERIC_STOPWORDS = {
 
 def score_to_percent(score: float) -> int:
     return max(0, min(100, int(round(score * 100))))
+
+
+def normalize_accounting_type(document_type: str | None) -> str:
+    normalized = normalize_space(document_type).lower().replace("-", "_").replace(" ", "_")
+    normalized = ACCOUNTING_TYPE_ALIASES.get(normalized, normalized)
+    return normalized if normalized in SUPPORTED_ACCOUNTING_TYPES else "facture"
+
+
+def detect_accounting_type(raw_text: str, requested_type: str) -> str:
+    upper = raw_text.upper()
+    rules = [
+        ("bon_livraison", ["BON DE LIVRAISON", "LIVRAISON"]),
+        ("bon_commande", ["BON DE COMMANDE", "COMMANDE"]),
+        ("bon_sortie", ["BON DE SORTIE", "SORTIE"]),
+        ("ordre_fabrication", ["ORDRE DE FABRICATION", "FABRICATION"]),
+        ("paiement_recu", ["PAIEMENT RECU", "REÇU DE PAIEMENT", "RECU DE PAIEMENT", "REÇU"]),
+        ("paiement_emis", ["PAIEMENT EMIS", "DÉCAISSEMENT", "DECAISSEMENT"]),
+        ("avoir", ["AVOIR", "NOTE DE CREDIT", "NOTE DE CRÉDIT"]),
+        ("proforma", ["PROFORMA"]),
+        ("devis", ["DEVIS", "OFFRE DE PRIX"]),
+        ("facture", ["FACTURE"]),
+    ]
+    for doc_type, keywords in rules:
+        if any(keyword in upper for keyword in keywords):
+            return doc_type
+    return requested_type
 
 
 def contains_keyword(text: str, keywords: Iterable[str]) -> bool:
@@ -877,6 +1064,228 @@ def extract_period_label(lines: list[OcrLine], raw_text: str) -> tuple[str | Non
     dates = DATE_RE.findall(raw_text)
     if len(dates) >= 2:
         return f"Du {dates[0]} au {dates[1]}", 0.65
+    return None, 0.0
+
+
+PARTY_LABELS_SUPPLIER = (
+    "fournisseur", "emetteur", "vendeur", "supplier", "vendor", "seller",
+    "raison sociale", "societe", "ste",
+)
+PARTY_LABELS_CLIENT = (
+    "client", "destinataire", "acheteur", "customer", "buyer", "bill to",
+    "ship to", "livre a", "facture a", "adresse livraison",
+)
+PARTY_NOISE_KEYS = {
+    "SIGNATURE", "BON DE LIVRAISON", "FACTURE", "AVOIR", "DEVIS", "DATE",
+    "NUMERO", "REFERENCE", "CODE CLIENT", "MODE REGLEMENT", "ECHEANCE",
+    "COMMERCIAL", "COMMANDE", "TOTAL", "TVA", "HT", "TTC", "TIMBRE",
+    "ARTICLE", "DESIGNATION", "PRIX", "QTE", "UNITE",
+}
+PAYMENT_LABELS = (
+    "mode reglement", "mode de reglement", "mode paiement", "mode de paiement",
+    "payment method", "reglement", "paiement",
+)
+DUE_DATE_LABELS = (
+    "echeance", "date echeance", "date d echeance", "due date", "terme",
+    "delai paiement", "delai de paiement",
+)
+DUE_TERM_RE = re.compile(r"\b(\d{1,3}\s*(?:j|jour|jours|days?)|fin\s+de\s+mois|comptant)\b", re.IGNORECASE)
+
+
+def normalize_tax_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    clean = re.sub(r"[^0-9A-Za-z]", "", value).upper()
+    return clean if len(clean) >= 8 else None
+
+
+def clean_party_candidate(value: str | None) -> str | None:
+    clean = normalize_space(value).strip(":-#|\"'")
+    if not clean:
+        return None
+    key = search_key(clean)
+    for label in (*PARTY_LABELS_SUPPLIER, *PARTY_LABELS_CLIENT):
+        label_key = search_key(label)
+        if key.startswith(label_key):
+            clean = normalize_space(clean[len(label):]).strip(":-#|\"'")
+            key = search_key(clean)
+    return clean if clean and key else None
+
+
+def is_party_candidate(value: str | None) -> bool:
+    clean = clean_party_candidate(value)
+    if not clean:
+        return False
+    key = search_key(clean)
+    if len(clean) < 3 or key in PARTY_NOISE_KEYS:
+        return False
+    if any(noise in key for noise in PARTY_NOISE_KEYS):
+        return False
+    if MF_LONG_RE.search(clean) or IBAN_RE.search(clean) or DATE_RE.search(clean):
+        return False
+    if PHONE_RE.search(clean):
+        return False
+    if sum(ch.isdigit() for ch in clean) > max(2, len(clean) // 3):
+        return False
+    return any(ch.isalpha() for ch in clean)
+
+
+def labeled_party_value(lines: Sequence[OcrLine], labels: Sequence[str]) -> tuple[str | None, float]:
+    dims = page_dimensions(lines)
+    if dims is None:
+        return None, 0.0
+    width, height = dims
+    label_lines = [
+        (label_match_score(line.text, labels), line)
+        for line in lines
+        if line.bounds() is not None
+    ]
+    label_lines = [(score, line) for score, line in label_lines if score >= 0.72]
+    if not label_lines:
+        return None, 0.0
+
+    best: tuple[str, float, float] | None = None
+    for label_score, label_line in label_lines:
+        label_bounds = label_line.bounds()
+        if label_bounds is None:
+            continue
+        lx0, ly0, lx1, ly1 = label_bounds
+        label_y = (ly0 + ly1) / 2
+
+        inline = clean_party_candidate(label_line.text)
+        if inline and is_party_candidate(inline) and label_match_score(inline, labels) < 0.60:
+            best = (inline, min(0.88, label_line.score), 0.0)
+
+        for candidate in lines:
+            if candidate is label_line:
+                continue
+            cb = candidate.bounds()
+            if cb is None:
+                continue
+            cx0, cy0, cx1, cy1 = cb
+            candidate_y = (cy0 + cy1) / 2
+            row_dy = abs(candidate_y - label_y)
+            right_dx = cx0 - lx1
+            below_dy = cy0 - ly1
+            overlap_x = max(0.0, min(lx1, cx1) - max(lx0, cx0))
+            is_right = -2 <= right_dx <= 0.42 * width and row_dy <= 0.05 * height
+            is_below = 0 <= below_dy <= 0.14 * height and (overlap_x > 0 or abs((cx0 + cx1 - lx0 - lx1) / 2) <= 0.16 * width)
+            if not (is_right or is_below):
+                continue
+            value = clean_party_candidate(candidate.text)
+            if not is_party_candidate(value):
+                continue
+            dist = (right_dx if is_right else below_dy) + row_dy - (label_score * 10)
+            if best is None or dist < best[2]:
+                best = (value or "", min(0.92, candidate.score * (0.8 + label_score * 0.15)), dist)
+
+    return (best[0], best[1]) if best else (None, 0.0)
+
+
+def zone_party_value(lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    business = extract_business_name(list(lines))
+    if business and is_party_candidate(business):
+        return business, 0.84
+    for line in sorted(lines, key=lambda item: (item.y_mid() or 0, item.x_mid() or 0)):
+        value = clean_party_candidate(line.text)
+        if is_party_candidate(value):
+            return value, line.score
+    return None, 0.0
+
+
+def extract_parties_robust(zones: dict[str, list[OcrLine]], lines: Sequence[OcrLine]) -> tuple[str | None, float, str | None, float]:
+    header = zones.get("header") or list(lines)
+    header_left = zones.get("header_left") or header
+    header_right = zones.get("header_right") or header
+
+    supplier, supplier_score = labeled_party_value(header, PARTY_LABELS_SUPPLIER)
+    client, client_score = labeled_party_value(header, PARTY_LABELS_CLIENT)
+
+    if not supplier:
+        supplier, supplier_score = zone_party_value(header_left)
+    if not client:
+        client, client_score = zone_party_value(header_right)
+
+    if supplier and client and search_key(supplier) == search_key(client):
+        right_client, right_score = zone_party_value([line for line in header_right if search_key(line.text) != search_key(supplier)])
+        if right_client:
+            client, client_score = right_client, right_score
+    return supplier, supplier_score, client, client_score
+
+
+def extract_tax_id_robust(preferred_lines: Sequence[OcrLine], all_lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    for source_lines, boost in ((preferred_lines, 0.08), (all_lines, 0.0)):
+        for line in source_lines:
+            match = MF_LONG_RE.search(line.text)
+            if match:
+                return normalize_tax_id(match.group(1)), min(0.98, line.score + boost)
+        value, score = generic_label_value(
+            source_lines,
+            ["matricule fiscal", "mf", "identifiant fiscal", "tva", "tax id"],
+            value_pattern=MF_LONG_RE,
+            min_label_score=0.62,
+        )
+        normalized = normalize_tax_id(value)
+        if normalized:
+            return normalized, min(0.95, score + boost)
+    return None, 0.0
+
+
+def extract_due_date_robust(header_lines: Sequence[OcrLine], all_lines: Sequence[OcrLine], issue_date: str | None) -> tuple[str | None, float]:
+    for source_lines, boost in ((header_lines, 0.08), (all_lines, 0.0)):
+        value, score = generic_label_value(
+            source_lines,
+            DUE_DATE_LABELS,
+            value_pattern=DATE_RE,
+            min_label_score=0.66,
+        )
+        if value and value != issue_date:
+            return value, min(0.95, score + boost)
+        term, term_score = generic_label_value(
+            source_lines,
+            DUE_DATE_LABELS,
+            value_pattern=DUE_TERM_RE,
+            min_label_score=0.66,
+        )
+        if term:
+            return normalize_space(term), min(0.86, term_score + boost)
+    return None, 0.0
+
+
+def normalize_payment_method(value: str | None) -> str | None:
+    key = search_key(value)
+    if not key:
+        return None
+    if any(token in key for token in ("ESPECE", "CASH")):
+        return "Espèces"
+    if any(token in key for token in ("CHEQUE", "CHQ")):
+        return "Chèque"
+    if any(token in key for token in ("VIREMENT", "TRANSFER", "BANK")):
+        return "Virement"
+    if any(token in key for token in ("CARTE", "CB", "VISA", "MASTERCARD", "TPE")):
+        return "Carte bancaire"
+    if any(token in key for token in ("TRAITE", "EFFET", "LCR")):
+        return "Traite"
+    if "COMPTANT" in key:
+        return "Comptant"
+    if key in {"ECHEANCE", "DATE", "COMMERCIAL", "COMMANDE", "CODE CLIENT"}:
+        return None
+    return normalize_space(value)
+
+
+def extract_payment_method_robust(header_lines: Sequence[OcrLine], all_lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    direct, direct_score = extract_payment_method(list(all_lines))
+    if direct:
+        return direct, direct_score
+    for source_lines, boost in ((header_lines, 0.08), (all_lines, 0.0)):
+        value, score = generic_label_value(
+            source_lines,
+            PAYMENT_LABELS,
+            min_label_score=0.64,
+        )
+        normalized = normalize_payment_method(value)
+        if normalized:
+            return normalized, min(0.90, score + boost)
     return None, 0.0
 
 
@@ -1362,6 +1771,466 @@ def extract_total_generic(lines: Sequence[OcrLine], labels: Sequence[str]) -> tu
     return None, 0.0
 
 
+PHONE_RE = re.compile(r"\b(?:\+?216[\s.-]*)?(\d{2}[\s.-]?\d{3}[\s.-]?\d{3})\b")
+
+
+def extract_phone(lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    for line in lines:
+        match = PHONE_RE.search(line.text)
+        if match:
+            return normalize_space(match.group(0)), line.score
+    return None, 0.0
+
+
+def extract_articles_json(body_lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    rows: list[dict[str, object]] = []
+    for line in body_lines:
+        text = normalize_space(line.text)
+        upper = text.upper()
+        if len(text) < 8:
+            continue
+        if any(label in upper for label in ("REFERENCE", "DESIGNATION", "TOTAL", "TVA", "PRIX", "QTE", "QTÉ")):
+            continue
+        amounts = AMOUNT_RE.findall(text)
+        if not amounts:
+            continue
+        numbers = [parse_amount_from_text(value) for value in amounts]
+        numbers = [value for value in numbers if value]
+        if not numbers:
+            continue
+        designation = re.sub(AMOUNT_RE, " ", text)
+        designation = normalize_space(re.sub(r"\b[A-Z0-9./-]{4,}\b", " ", designation)).strip(" -")
+        if len(designation) < 3:
+            continue
+        row: dict[str, object] = {"designation": designation}
+        if len(numbers) >= 1:
+            row["total"] = numbers[-1]
+        if len(numbers) >= 2:
+            row["prix_unitaire"] = numbers[-2]
+        rows.append(row)
+        if len(rows) >= 20:
+            break
+    if not rows:
+        return None, 0.0
+    return json.dumps(rows, ensure_ascii=False), 0.65
+
+
+TABLE_COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
+    "reference": ("REFERENCE", "REF", "CODE", "CODE ARTICLE", "ARTICLE"),
+    "designation": ("DESIGNATION", "DESIGNATION ARTICLE", "LIBELLE", "DESCRIPTION", "PRODUIT", "ARTICLE"),
+    "unite": ("UNITE", "UN", "U"),
+    "quantite": ("QTE", "QTY", "QUANTITE", "QUANT"),
+    "prix_unitaire_ht": ("PU", "P U", "PU HT", "PRIX UNIT", "PRIX UNITAIRE", "PRIX UNIT HT", "UNIT HT", "P U NET HT"),
+    "remise": ("REMISE", "DISCOUNT", "RABAIS"),
+    "taux_tva": ("TVA", "TAUX TVA", "% TVA", "TAX"),
+    "total_ht": ("TOTAL", "TOTAL HT", "MONTANT", "MONTANT HT", "NET HT"),
+}
+
+ARTICLE_FOOTER_KEYS = {
+    "TOTAL", "TOTAL HT", "TOTAL TTC", "NET HT", "BRUT HT", "BASE HT", "TVA",
+    "MONTANT TVA", "TIMBRE", "TOTAL A PAYER", "NET A PAYER", "REMISE",
+}
+
+
+def table_column_for_text(text: str) -> str | None:
+    key = search_key(text)
+    best: tuple[str, int] | None = None
+    for column, aliases in TABLE_COLUMN_ALIASES.items():
+        for alias in aliases:
+            alias_key = search_key(alias)
+            if alias_key and (alias_key == key or alias_key in key):
+                if best is None or len(alias_key) > best[1]:
+                    best = (column, len(alias_key))
+    return best[0] if best else None
+
+
+def group_ocr_rows(lines: Sequence[OcrLine]) -> list[list[OcrLine]]:
+    positioned = [line for line in lines if line.bounds() is not None]
+    if not positioned:
+        return []
+    heights = []
+    for line in positioned:
+        bounds = line.bounds()
+        if bounds:
+            heights.append(max(1.0, bounds[3] - bounds[1]))
+    median_height = sorted(heights)[len(heights) // 2] if heights else 12.0
+    threshold = max(8.0, median_height * 0.75)
+
+    rows: list[list[OcrLine]] = []
+    for line in sorted(positioned, key=lambda item: (item.y_mid() or 0, item.x_mid() or 0)):
+        y = line.y_mid() or 0
+        if not rows:
+            rows.append([line])
+            continue
+        previous_y = sum(item.y_mid() or y for item in rows[-1]) / len(rows[-1])
+        if abs(y - previous_y) <= threshold:
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    return [sorted(row, key=lambda item: item.x_mid() or 0) for row in rows]
+
+
+def table_row_text(row: Sequence[OcrLine]) -> str:
+    return normalize_space(" ".join(line.text for line in sorted(row, key=lambda item: item.x_mid() or 0)))
+
+
+def table_row_is_footer(row: Sequence[OcrLine]) -> bool:
+    key = search_key(table_row_text(row))
+    if not key:
+        return True
+    if key.startswith(("TOTAL", "NET HT", "BRUT HT", "BASE HT", "TIMBRE")):
+        return True
+    return any(footer_key in key for footer_key in ARTICLE_FOOTER_KEYS) and "DESIGNATION" not in key and "ARTICLE" not in key
+
+
+def infer_table_columns(rows: Sequence[Sequence[OcrLine]]) -> tuple[int, list[tuple[str, float]]]:
+    best_index = -1
+    best_columns: list[tuple[str, float]] = []
+    best_score = 0
+    for index, row in enumerate(rows):
+        columns: list[tuple[str, float]] = []
+        found: set[str] = set()
+        for line in row:
+            column = table_column_for_text(line.text)
+            x = line.x_mid()
+            if not column or x is None or column in found:
+                continue
+            found.add(column)
+            columns.append((column, x))
+        row_key = search_key(table_row_text(row))
+        score = len(found)
+        if "DESIGNATION" in row_key or "LIBELLE" in row_key:
+            score += 2
+        if "QTE" in row_key or "QUANTITE" in row_key:
+            score += 1
+        if "PRIX" in row_key or "PU" in row_key:
+            score += 1
+        if score > best_score and len(found) >= 2:
+            best_index = index
+            best_columns = columns
+            best_score = score
+    return best_index, sorted(best_columns, key=lambda item: item[1])
+
+
+def nearest_article_column(x: float, columns: Sequence[tuple[str, float]]) -> str | None:
+    return min(columns, key=lambda item: abs(item[1] - x))[0] if columns else None
+
+
+def clean_article_text(value: str | None) -> str | None:
+    clean = normalize_space(value).strip(":-| ")
+    return clean or None
+
+
+def article_number(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = parse_amount_from_text(value)
+    return parsed if parsed and re.search(r"\d", parsed) else None
+
+
+def normalize_article_row(cells: dict[str, str], score: float) -> dict[str, object] | None:
+    all_text = normalize_space(" ".join(cells.values()))
+    reference = clean_article_text(cells.get("reference"))
+    designation = clean_article_text(cells.get("designation"))
+    unite = clean_article_text(cells.get("unite"))
+    quantite = article_number(cells.get("quantite"))
+    prix_unitaire_ht = article_number(cells.get("prix_unitaire_ht"))
+    remise = article_number(cells.get("remise"))
+    taux_tva = article_number(cells.get("taux_tva"))
+    total_ht = article_number(cells.get("total_ht"))
+
+    if not reference:
+        reference_match = re.search(r"\b[A-Z0-9][A-Z0-9./-]{3,}\b", all_text)
+        reference = reference_match.group(0) if reference_match else None
+
+    amounts = [parse_amount_from_text(value) for value in AMOUNT_RE.findall(all_text)]
+    amounts = [value for value in amounts if value]
+    if not total_ht and amounts:
+        total_ht = amounts[-1]
+    if not prix_unitaire_ht and len(amounts) >= 2:
+        prix_unitaire_ht = amounts[-2]
+    if not quantite and len(amounts) >= 3:
+        quantite = amounts[0]
+
+    if designation:
+        designation = normalize_space(re.sub(AMOUNT_RE, " ", designation)).strip(":-| ")
+    if not designation:
+        free_text = " ".join(
+            value for key, value in cells.items()
+            if key not in {"reference", "unite", "quantite", "prix_unitaire_ht", "remise", "taux_tva", "total_ht"}
+        )
+        if reference:
+            free_text = free_text.replace(reference, " ", 1)
+        designation = clean_article_text(re.sub(AMOUNT_RE, " ", free_text))
+
+    if not any([reference, designation, quantite, prix_unitaire_ht, total_ht]) or (not designation and not reference):
+        return None
+
+    article: dict[str, object] = {}
+    if reference:
+        article["reference"] = reference
+    if designation:
+        article["designation"] = designation
+    if unite:
+        article["unite"] = unite
+    if quantite:
+        article["quantite"] = quantite
+    if prix_unitaire_ht:
+        article["prix_unitaire_ht"] = prix_unitaire_ht
+    if remise:
+        article["remise"] = remise
+    if taux_tva:
+        article["taux_tva"] = taux_tva
+    if total_ht:
+        article["total_ht"] = total_ht
+    article["confidence"] = max(0.0, min(0.99, round(score, 2)))
+    return article
+
+
+def fallback_article_from_line(line: OcrLine) -> dict[str, object] | None:
+    text = normalize_space(line.text)
+    if len(text) < 8 or table_row_is_footer([line]):
+        return None
+    key = search_key(text)
+    if any(token in key for token in ("REFERENCE DESIGNATION", "DESIGNATION ARTICLE", "PRIX UNIT", "TAUX TVA")):
+        return None
+
+    amounts = [parse_amount_from_text(value) for value in AMOUNT_RE.findall(text)]
+    amounts = [value for value in amounts if value]
+    if not amounts:
+        return None
+
+    reference_match = re.search(r"\b[A-Z0-9][A-Z0-9./-]{3,}\b", text)
+    reference = reference_match.group(0) if reference_match else None
+    designation = text.replace(reference, " ", 1) if reference else text
+    designation = normalize_space(re.sub(AMOUNT_RE, " ", designation)).strip(":-| ")
+    if len(designation) < 3:
+        return None
+
+    cells: dict[str, str] = {"designation": designation}
+    if reference:
+        cells["reference"] = reference
+    if len(amounts) >= 1:
+        cells["total_ht"] = amounts[-1]
+    if len(amounts) >= 2:
+        cells["prix_unitaire_ht"] = amounts[-2]
+    if len(amounts) >= 3:
+        cells["quantite"] = amounts[0]
+    return normalize_article_row(cells, min(0.72, line.score))
+
+
+def extract_articles_json_structured(lines: Sequence[OcrLine]) -> tuple[str | None, float]:
+    ocr_rows = group_ocr_rows(lines)
+    header_index, columns = infer_table_columns(ocr_rows)
+    articles: list[dict[str, object]] = []
+
+    if header_index >= 0 and len(columns) >= 2:
+        for row in ocr_rows[header_index + 1:]:
+            if table_row_is_footer(row):
+                if articles:
+                    break
+                continue
+            cells: dict[str, str] = {}
+            scores: list[float] = []
+            for line in row:
+                x = line.x_mid()
+                if x is None:
+                    continue
+                column = nearest_article_column(x, columns)
+                if not column:
+                    continue
+                cells[column] = normalize_space(f"{cells.get(column, '')} {line.text}")
+                scores.append(line.score)
+            article = normalize_article_row(cells, sum(scores) / len(scores) if scores else 0.65)
+            if article:
+                articles.append(article)
+            if len(articles) >= 50:
+                break
+
+    if not articles:
+        dims = page_dimensions(lines)
+        _, page_height = dims if dims else (0.0, 0.0)
+        for line in sorted(lines, key=lambda item: (item.y_mid() or 0, item.x_mid() or 0)):
+            y = line.y_mid()
+            if page_height and y is not None and (y < 0.22 * page_height or y > 0.82 * page_height):
+                continue
+            article = fallback_article_from_line(line)
+            if article:
+                articles.append(article)
+            if len(articles) >= 50:
+                break
+
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for article in articles:
+        key = search_key(f"{article.get('reference', '')} {article.get('designation', '')}")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(article)
+
+    if not deduped:
+        return None, 0.0
+
+    completeness = 0.0
+    for article in deduped:
+        completeness += sum(1 for key in ("designation", "quantite", "prix_unitaire_ht", "total_ht") if article.get(key)) / 4
+    completeness = completeness / len(deduped)
+    score = 0.72 + min(0.18, completeness * 0.18)
+    if header_index >= 0 and len(columns) >= 3:
+        score += 0.06
+    return json.dumps(deduped, ensure_ascii=False), min(0.92, score)
+
+
+def infer_trade_sense(document_type: str, raw_text: str) -> tuple[str | None, float]:
+    upper = raw_text.upper()
+    if document_type in {"paiement_recu"}:
+        return "vente", 0.55
+    if document_type in {"paiement_emis"}:
+        return "achat", 0.55
+    if any(token in upper for token in ("FOURNISSEUR", "ACHAT", "FACTURE FOURNISSEUR")):
+        return "achat", 0.55
+    if any(token in upper for token in ("CLIENT", "VENTE", "FACTURE CLIENT")):
+        return "vente", 0.5
+    return None, 0.0
+
+
+def infer_payment_status(raw_text: str) -> tuple[str | None, float]:
+    key = search_key(raw_text)
+    if any(token in key for token in ("PAYE", "REGLE", "SOLDE")):
+        return "paye", 0.65
+    if any(token in key for token in ("IMPAYE", "ECHEANCE DEPASSEE")):
+        return "impaye", 0.65
+    if any(token in key for token in ("ECHEANCE", "A PAYER", "EN ATTENTE")):
+        return "en_attente", 0.55
+    return "en_attente", 0.45
+
+
+def parse_decimal(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        clean = value.replace(" ", "").replace(",", ".")
+        return float(re.sub(r"[^0-9.\-]", "", clean))
+    except Exception:
+        return None
+
+
+def score_totals_coherence(fields: Sequence[AccountingFieldResult]) -> int:
+    values = {field.key: field.value for field in fields}
+    ht = parse_decimal(values.get("total_ht") or values.get("net_ht"))
+    tva = parse_decimal(values.get("total_tva"))
+    ttc = parse_decimal(values.get("total_ttc") or values.get("total_to_pay"))
+    if ht is None or tva is None or ttc is None:
+        return 50
+    diff = abs((ht + tva) - ttc)
+    tolerance = max(0.02, ttc * 0.015)
+    return 100 if diff <= tolerance else 35
+
+
+def calculate_overall_confidence(
+    document_type: str,
+    fields: Sequence[AccountingFieldResult],
+    image_quality: dict[str, object],
+) -> int:
+    required = set(SUPPORTED_ACCOUNTING_TYPES[document_type]["required"])
+    required_fields = [field for field in fields if field.key in required]
+    if required_fields:
+        required_score = sum(field.confidence if field.value else 0 for field in required_fields) / len(required_fields)
+    else:
+        required_score = 0
+
+    critical_keys = {"supplier_tax_id", "client_name", "total_ht", "total_tva", "total_ttc", "total_to_pay", "articles"}
+    critical = [field for field in fields if field.key in critical_keys and field.value]
+    critical_score = sum(field.confidence for field in critical) / len(critical) if critical else 45
+    coherence_score = score_totals_coherence(fields)
+    quality_score = int(image_quality.get("score", 70))
+
+    score = required_score * 0.55 + critical_score * 0.15 + coherence_score * 0.20 + quality_score * 0.10
+    missing_required = sum(1 for field in required_fields if not field.value)
+    score -= missing_required * 10
+    return max(0, min(100, int(round(score))))
+
+
+def build_versioned_accounting_document(
+    document_type: str,
+    fields: Sequence[AccountingFieldResult],
+    overall_confidence: int,
+    source_mode: str,
+    image_quality: dict[str, object],
+) -> dict[str, object]:
+    values = {field.key: field.value for field in fields}
+    confidence = {field.key: field.confidence for field in fields}
+
+    def pick(*keys: str) -> str | None:
+        for key in keys:
+            value = values.get(key)
+            if value:
+                return value
+        return None
+
+    articles: list[object] = []
+    raw_articles = values.get("articles")
+    if raw_articles:
+        try:
+            parsed_articles = json.loads(raw_articles)
+            if isinstance(parsed_articles, list):
+                articles = parsed_articles
+        except Exception:
+            articles = []
+
+    missing_fields = [
+        field.key for field in fields if field.required and not field.value
+    ]
+    review_fields = [
+        field.key for field in fields if field.requiresReview or (field.required and not field.value)
+    ]
+
+    return {
+        "type": document_type,
+        "sens": pick("trade_sense"),
+        "statut_paiement": pick("payment_status"),
+        "numero": pick("document_number", "invoice_number", "delivery_note_number", "receipt_number", "reference", "order_reference"),
+        "date": pick("issue_date"),
+        "echeance": pick("due_date"),
+        "mode_reglement": pick("payment_method"),
+        "emetteur": {
+            "nom": pick("supplier_name", "merchant_name", "issuer_name"),
+            "mf": pick("supplier_tax_id", "merchant_tax_id", "issuer_tax_id"),
+            "adresse": pick("supplier_address", "merchant_address", "issuer_address"),
+            "iban": pick("supplier_iban", "iban"),
+        },
+        "destinataire": {
+            "nom": pick("client_name", "beneficiary_name"),
+            "code_client": pick("client_code"),
+            "adresse": pick("client_address"),
+            "telephone": pick("client_phone"),
+        },
+        "articles": articles,
+        "totaux": {
+            "brut_ht": pick("brut_ht"),
+            "remise": pick("remise_amount"),
+            "net_ht": pick("net_ht", "total_ht"),
+            "tva": pick("total_tva"),
+            "timbre": pick("timbre"),
+            "ttc": pick("total_ttc", "amount"),
+            "total_a_payer": pick("total_to_pay", "total_ttc", "amount"),
+            "devise": pick("currency"),
+        },
+        "confiance": {
+            "score_global": round(overall_confidence / 100, 2),
+            "score_global_percent": overall_confidence,
+            "champs": confidence,
+            "champs_manquants": missing_fields,
+            "champs_a_verifier": review_fields,
+        },
+        "source": {
+            "mode": source_mode,
+            "qualite_image": image_quality,
+        },
+    }
+
+
 def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: str) -> list[AccountingFieldResult]:
     config = SUPPORTED_ACCOUNTING_TYPES[document_type]
     required_keys = set(config["required"])
@@ -1417,21 +2286,24 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
     )
     if generic_due_date:
         due_date, due_date_score = generic_due_date, generic_due_date_score
+    robust_due_date, robust_due_date_score = extract_due_date_robust(header_lines, lines, issue_date)
+    if robust_due_date:
+        due_date, due_date_score = robust_due_date, robust_due_date_score
     if due_date and issue_date and due_date == issue_date:
         due_date, due_date_score = None, 0.0
 
     currency = extract_currency(raw_text)
-    payment_method, payment_score = extract_payment_method(lines)
+    payment_method, payment_score = extract_payment_method_robust(header_lines, lines)
     invoice_number, invoice_score = first_line_value(lines, ["FACTURE", "INVOICE", "N°", "NUMERO"])
     receipt_number, receipt_score = first_line_value(lines, ["TICKET", "RECU", "REÇU", "REF"])
     document_number, document_number_score = extract_document_number_generic(header_lines)
     delivery_number, delivery_score = document_number, document_number_score
-    if document_number and document_type in {"supplier_invoice", "delivery_note", "purchase_order", "credit_note"}:
+    if document_number:
         invoice_number, invoice_score = document_number, document_number_score
     order_reference, order_score = first_line_value(lines, ["COMMANDE", "ORDER", "REF COMMANDE"])
     amount, amount_score = amount_by_keywords(lines, ["MONTANT", "AMOUNT", "TOTAL"])
     issue_time, issue_time_score = first_time_line(lines)
-    supplier_tax_id, tax_score = first_regex(lines, MF_LONG_RE)
+    supplier_tax_id, tax_score = extract_tax_id_robust(header_left, lines)
     iban, iban_score = first_iban(lines)
     period_label, period_score = extract_period_label(lines, raw_text)
     expense_type, expense_type_score = first_line_value(lines, ["NATURE", "DEPENSE", "DÉPENSE", "TYPE"])
@@ -1445,6 +2317,12 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
     client_score = 0.0
     client_code: str | None = None
     client_code_score = 0.0
+    supplier_address, supplier_address_score = extract_address(header_left), 0.65
+    client_address, client_address_score = extract_address(header_right), 0.65
+    client_phone, client_phone_score = extract_phone(header_right)
+    trade_sense, trade_sense_score = infer_trade_sense(document_type, raw_text)
+    payment_status, payment_status_score = infer_payment_status(raw_text)
+    articles, articles_score = extract_articles_json_structured(lines)
     brut_ht: str | None = None
     brut_ht_score = 0.0
     remise_amount: str | None = None
@@ -1456,16 +2334,55 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
     total_to_pay: str | None = None
     total_to_pay_score = 0.0
 
-    if document_type == "delivery_note":
+    robust_supplier, robust_supplier_score, robust_client, robust_client_score = extract_parties_robust(zones, lines)
+    if robust_supplier:
+        supplier_name, supplier_score = robust_supplier, robust_supplier_score
+    if robust_client:
+        client_name, client_score = robust_client, robust_client_score
+
+    supplier_from_layout = extract_business_name(header_left)
+    if supplier_from_layout and (not supplier_name or supplier_score < 0.86):
+        supplier_name = supplier_from_layout
+        supplier_score = 0.86
+
+    client_guess, client_guess_score = guess_party_name(header_right)
+    if client_guess and (not client_name or client_score < client_guess_score):
+        client_name = client_guess
+        client_score = client_guess_score
+
+    supplier_tax_id_from_layout, tax_layout_score = first_regex(header_left, MF_LONG_RE)
+    if supplier_tax_id_from_layout:
+        supplier_tax_id, tax_score = normalize_tax_id(supplier_tax_id_from_layout), tax_layout_score
+
+    client_code, client_code_score = generic_label_value(
+        header_lines,
+        ["code client", "client code", "code tiers", "compte client"],
+        value_pattern=CLIENT_CODE_RE,
+        min_label_score=0.68,
+    )
+
+    payment_method_from_layout, payment_layout_score = generic_label_value(
+        header_lines,
+        ["mode reglement", "mode règlement", "mode paiement", "payment method"],
+        min_label_score=0.68,
+    )
+    if payment_method_from_layout and not payment_method:
+        payment_key = search_key(payment_method_from_layout)
+        if payment_key not in {"ECHEANCE", "COMMERCIAL", "COMMANDE", "DATE", "CODE CLIENT"}:
+            payment_method, payment_score = normalize_payment_method(payment_method_from_layout), payment_layout_score
+
+    if document_type == "bon_livraison":
         supplier_from_layout = extract_business_name(header_left)
-        if supplier_from_layout:
+        if supplier_from_layout and (not supplier_name or supplier_score < 0.9):
             supplier_name = supplier_from_layout
             supplier_score = 0.9
 
-        supplier_tax_id, tax_score = first_regex(header_left, MF_LONG_RE)
+        bl_supplier_tax_id, bl_tax_score = first_regex(header_left, MF_LONG_RE)
+        if bl_supplier_tax_id:
+            supplier_tax_id, tax_score = normalize_tax_id(bl_supplier_tax_id), bl_tax_score
 
         client_guess, client_guess_score = guess_party_name(header_right)
-        if client_guess:
+        if client_guess and (not client_name or client_score < client_guess_score):
             client_name = client_guess
             client_score = client_guess_score
 
@@ -1487,10 +2404,10 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
             ["mode reglement", "mode règlement", "mode paiement", "payment method"],
             min_label_score=0.68,
         )
-        if payment_method_from_layout:
+        if payment_method_from_layout and not payment_method:
             payment_key = search_key(payment_method_from_layout)
             if payment_key not in {"ECHEANCE", "COMMERCIAL", "COMMANDE", "DATE", "CODE CLIENT"}:
-                payment_method, payment_score = payment_method_from_layout, payment_layout_score
+                payment_method, payment_score = normalize_payment_method(payment_method_from_layout), payment_layout_score
 
         brut_ht, brut_ht_score = extract_total_generic(
             footer_lines,
@@ -1660,8 +2577,12 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
                         remise_score = 0.65
 
     values: dict[str, tuple[str | None, float]] = {
+        "trade_sense": (trade_sense, trade_sense_score),
+        "payment_status": (payment_status, payment_status_score),
+        "document_number": (document_number, document_number_score),
         "supplier_name": (supplier_name, supplier_score),
         "supplier_tax_id": (supplier_tax_id, tax_score),
+        "supplier_address": (supplier_address, supplier_address_score if supplier_address else 0.0),
         "invoice_number": (invoice_number, invoice_score),
         "issue_date": (issue_date, issue_date_score),
         "due_date": (due_date, due_date_score),
@@ -1681,6 +2602,8 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
         "order_reference": (order_reference, order_score),
         "client_name": (client_name, client_score),
         "client_code": (client_code, client_code_score),
+        "client_address": (client_address, client_address_score if client_address else 0.0),
+        "client_phone": (client_phone, client_phone_score),
         "brut_ht": (brut_ht, brut_ht_score),
         "remise_amount": (remise_amount, remise_score),
         "net_ht": (net_ht, net_ht_score),
@@ -1691,6 +2614,7 @@ def build_accounting_fields(document_type: str, lines: list[OcrLine], raw_text: 
         "vat_recoverable": (vat_recoverable, 0.7),
         "iban": (iban, iban_score),
         "period_label": (period_label, period_score),
+        "articles": (articles, articles_score),
     }
 
     return [
@@ -1710,7 +2634,7 @@ async def parse_accounting_document(
     file: UploadFile = File(...),
     document_type: str = Form(...),
 ) -> AccountingOcrExtractionResult:
-    normalized_type = normalize_space(document_type).lower().replace("-", "_").replace(" ", "_")
+    normalized_type = normalize_accounting_type(document_type)
     if normalized_type not in SUPPORTED_ACCOUNTING_TYPES:
         raise HTTPException(status_code=400, detail="Type de document comptable non supporté.")
 
@@ -1725,11 +2649,17 @@ async def parse_accounting_document(
 
     file_bytes = await file.read()
     lines: list[OcrLine] = []
+    source_mode = "ocr"
+    image_quality: dict[str, object] = {}
     if mime == "application/pdf":
         lines = pdf_to_text_lines(file_bytes)
+        if lines:
+            source_mode = "native_pdf"
+            image_quality = merge_image_quality([], native_pdf=True)
 
     if not lines:
         pages = iter_images(file_bytes, mime)
+        image_quality = merge_image_quality([assess_image_quality(page) for page in pages])
         for image in pages:
             lines.extend(ocr_image(image))
 
@@ -1743,19 +2673,32 @@ async def parse_accounting_document(
         )
 
     raw_text = "\n".join(line.text for line in lines)
+    normalized_type = detect_accounting_type(raw_text, normalized_type)
     fields = build_accounting_fields(normalized_type, lines, raw_text)
-    required = set(SUPPORTED_ACCOUNTING_TYPES[normalized_type]["required"])
-    required_confidences = [field.confidence for field in fields if field.key in required]
-    overall_confidence = int(round(sum(required_confidences) / max(1, len(required_confidences)))) if required_confidences else 0
+    if not image_quality:
+        image_quality = {"score": 70, "warnings": [], "source": source_mode}
+    overall_confidence = calculate_overall_confidence(normalized_type, fields, image_quality)
     missing_fields = [field.key for field in fields if field.required and not field.value]
+    versioned_document = build_versioned_accounting_document(
+        normalized_type,
+        fields,
+        overall_confidence,
+        source_mode,
+        image_quality,
+    )
 
     return AccountingOcrExtractionResult(
+        schemaVersion="1.0",
+        schema_version="1.0",
         ocrSuccess=True,
         overallConfidence=overall_confidence,
         documentType=normalized_type,
         fields=fields,
         missingFields=missing_fields,
+        document=versioned_document,
         rawText=raw_text,
+        sourceMode=source_mode,
+        imageQuality=image_quality,
         errorMessage=None,
     )
 

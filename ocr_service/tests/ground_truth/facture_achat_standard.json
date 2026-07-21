@@ -1,0 +1,40 @@
+{
+  "case_id": "facture_achat_standard",
+  "title": "Facture achat standard",
+  "document_type": "facture",
+  "sample_file": "samples/facture_achat_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.sens",
+    "document.statut_paiement",
+    "document.numero",
+    "document.date",
+    "document.echeance",
+    "document.mode_reglement",
+    "document.emetteur.nom",
+    "document.emetteur.mf",
+    "document.destinataire.nom",
+    "document.articles[0].designation",
+    "document.totaux.net_ht",
+    "document.totaux.tva",
+    "document.totaux.ttc"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "facture",
+      "sens": "achat",
+      "statut_paiement": "en_attente",
+      "numero": "FA-2026-0012",
+      "date": "04/05/2026",
+      "echeance": "30 jours",
+      "mode_reglement": "Virement",
+      "emetteur": { "nom": "STE FOURNISSEUR TEST", "mf": "1234567ABC000", "adresse": "Tunis", "iban": null },
+      "destinataire": { "nom": "ENTREPRISE CLIENT TEST", "code_client": "CLT-001", "adresse": "Ariana", "telephone": null },
+      "articles": [
+        { "reference": "SRV-001", "designation": "Maintenance mensuelle", "quantite": "1", "prix_unitaire_ht": "1000.000", "taux_tva": "19.00", "total_ht": "1000.000" }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": "1000.000", "tva": "190.000", "timbre": "1.000", "ttc": "1191.000", "total_a_payer": "1191.000", "devise": "TND" }
+    }
+  }
+}

@@ -43,12 +43,8 @@ public sealed class ScanController(
     [ProducesResponseType(typeof(ScanUploadResponseDto), 200)]
     public async Task<IActionResult> Upload([FromForm] UploadScanRequest request, CancellationToken ct)
     {
-        // DEV: Allow scan without enterprise for testing
-        var entrepriseId = EntrepriseIdOpt ?? Guid.Empty;
-        var utilisateurId = UtilisateurIdOpt ?? Guid.Empty;
-
-        if (utilisateurId == Guid.Empty)
-            return Problem(title: "Utilisateur invalide", statusCode: 401);
+        var guard = EntrepriseRequise(out var entrepriseId, out var utilisateurId);
+        if (guard is not null) return guard;
 
         var result = await scanService.UploadAsync(
             entrepriseId,

@@ -30,9 +30,7 @@ public class DemoController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Obtenir toutes les demandes de démo
-    /// </summary>
+    /// <summary>Obtenir toutes les demandes de démo</summary>
     [Authorize(Policy = "SuperOuAdmin")]
     [HttpGet("requests")]
     public async Task<IActionResult> GetAllRequests()
@@ -62,9 +60,7 @@ public class DemoController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Obtenir une demande de démo par ID
-    /// </summary>
+    /// <summary>Obtenir une demande de démo par ID</summary>
     [Authorize(Policy = "SuperOuAdmin")]
     [HttpGet("requests/{id}")]
     public async Task<IActionResult> GetRequestById(Guid id)
@@ -97,9 +93,7 @@ public class DemoController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Mettre à jour le statut d'une demande
-    /// </summary>
+    /// <summary>Mettre à jour le statut d'une demande</summary>
     [Authorize(Policy = "SuperOuAdmin")]
     [HttpPatch("requests/{id}/status")]
     public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStatusDto dto)
@@ -119,8 +113,7 @@ public class DemoController : ControllerBase
 
             _logger.LogInformation(
                 "Statut de la demande {Id} mis à jour : {OldStatus} -> {NewStatus}",
-                id, request.Status, newStatus
-            );
+                id, request.Status, newStatus);
 
             return Ok(new { success = true, message = "Statut mis à jour" });
         }
@@ -131,11 +124,7 @@ public class DemoController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Réserver une session de démonstration
-    /// </summary>
-    /// <param name="dto">Informations de réservation</param>
-    /// <returns>Confirmation de réservation</returns>
+    /// <summary>Réserver une session de démonstration</summary>
     [AllowAnonymous]
     [HttpPost("book")]
     public async Task<IActionResult> BookDemo([FromBody] DemoBookingDto dto)
@@ -145,41 +134,28 @@ public class DemoController : ControllerBase
 
         try
         {
-            // Créer l'entité DemoRequest
             var demoRequest = DemoRequest.Create(
-                dto.Prenom,
-                dto.Nom,
-                dto.Email,
-                dto.Entreprise,
-                dto.Date,
-                dto.Heure,
-                dto.Telephone,
-                dto.Message
-            );
+                dto.Prenom, dto.Nom, dto.Email, dto.Entreprise,
+                dto.Date, dto.Heure, dto.Telephone, dto.Message);
 
             await _demoRepository.AddAsync(demoRequest);
             await _demoRepository.SaveChangesAsync();
 
             var dateStr = dto.Date.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
 
-            // Email au demandeur
             await _emailService.SendEmailAsync(
                 dto.Email,
-                "Confirmation de votre démo EY-Factify",
-                BuildConfirmationEmail(dto, dateStr)
-            );
+                "Votre session de démo est confirmée — TuniFlow",
+                BuildConfirmationEmail(dto, dateStr));
 
-            // Email interne à l'équipe
             await _emailService.SendEmailAsync(
-                "noreply.einvoicingportal@gmail.com", // Remplacer par l'email de l'équipe EY
+                "noreply.einvoicingportal@gmail.com",
                 $"[Démo] {dto.Prenom} {dto.Nom} — {dto.Entreprise} — {dateStr} {dto.Heure}",
-                BuildInternalEmail(dto, dateStr)
-            );
+                BuildInternalEmail(dto, dateStr));
 
             _logger.LogInformation(
                 "Réservation de démo confirmée : {Email} - {Entreprise} - {Date} {Heure}",
-                dto.Email, dto.Entreprise, dateStr, dto.Heure
-            );
+                dto.Email, dto.Entreprise, dateStr, dto.Heure);
 
             return Ok(new { success = true, message = "Réservation confirmée", id = demoRequest.Id });
         }
@@ -190,64 +166,227 @@ public class DemoController : ControllerBase
         }
     }
 
+    // ─── Email templates ──────────────────────────────────────────────────────
+
     private static string BuildConfirmationEmail(DemoBookingDto dto, string dateStr) => $"""
         <!DOCTYPE html>
         <html lang="fr">
         <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Confirmation démo EY-Factify</title>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1.0">
+          <title>Confirmation démo TuniFlow</title>
         </head>
-        <body style="font-family: 'DM Sans', Arial, sans-serif; background:#f9f9f9; margin:0; padding:32px;">
-            <div style="max-width:560px; margin:0 auto; background:#fff; border-radius:16px; overflow:hidden; border:1px solid #eee;">
+        <body style="margin:0;padding:0;background-color:#F4F4F5;font-family:Arial,Helvetica,sans-serif">
+          <!-- Preview text -->
+          <div style="display:none;max-height:0;overflow:hidden">Votre session du {dateStr} à {dto.Heure} est confirmée.&nbsp;&zwnj;&hairsp;&hairsp;&hairsp;&hairsp;</div>
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F5;padding:32px 0">
+            <tr><td align="center">
+              <table width="580" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #E4E4E7">
+
+                <!-- Yellow accent -->
+                <tr><td height="4" style="background:#FFE600;font-size:0;line-height:0">&nbsp;</td></tr>
+
                 <!-- Header -->
-                <div style="background:#FFE600; padding:20px 32px;">
-                    <span style="font-size:16px; font-weight:800; color:#000;">EY-Factify</span>
-                </div>
-                
+                <tr>
+                  <td style="padding:24px 32px 20px;border-bottom:1px solid #F0F0F0">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td>
+                          <table cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td style="background:#FFE600;border-radius:6px;padding:5px 11px">
+                                <span style="font-size:14px;font-weight:900;color:#0A0A0A;font-family:Arial,sans-serif">TF</span>
+                              </td>
+                              <td style="padding-left:10px;vertical-align:middle">
+                                <span style="font-size:15px;font-weight:700;color:#0A0A0A;font-family:Arial,sans-serif">TuniFlow</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td align="right" style="vertical-align:middle">
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
                 <!-- Body -->
-                <div style="padding:32px;">
-                    <h2 style="font-size:20px; color:#0A0A0A; margin-bottom:8px;">Votre démo est confirmée !</h2>
-                    <p style="color:#555; line-height:1.8;">Bonjour {dto.Prenom},</p>
-                    <p style="color:#555; line-height:1.8;">
-                        Votre session de démonstration EY-Factify a bien été enregistrée.
+                <tr>
+                  <td style="padding:32px 32px 24px">
+
+                    <!-- Success badge -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+                      <tr>
+                        <td style="background:#F0FDF4;border-left:4px solid #16A34A;border-radius:0 8px 8px 0;padding:12px 16px">
+                          <span style="font-size:13px;font-weight:700;color:#14532D;font-family:Arial,sans-serif">✓ &nbsp;Votre session de démo est confirmée !</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <h1 style="font-size:22px;font-weight:700;color:#0A0A0A;margin:0 0 8px;font-family:Arial,sans-serif">Bonjour {dto.Prenom},</h1>
+                    <p style="font-size:14px;color:#52525B;line-height:1.7;margin:0 0 24px;font-family:Arial,sans-serif">Votre session de démonstration TuniFlow a bien été enregistrée. Retrouvez ci-dessous les détails de votre rendez-vous.</p>
+
+                    <!-- Session details -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAFA;border:1px solid #E4E4E7;border-radius:10px;margin:0 0 24px">
+                      <tr><td style="padding:16px 20px">
+                        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#A1A1AA;margin:0 0 12px;font-family:Arial,sans-serif">Détails de la session</p>
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;width:140px;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Date</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;font-weight:600">{dateStr}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Heure</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;font-weight:600">{dto.Heure}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Durée</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5">30 minutes</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Support</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5">Microsoft Teams</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;vertical-align:top">Entreprise</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif">{dto.Entreprise}</td>
+                          </tr>
+                        </table>
+                      </td></tr>
+                    </table>
+
+                    <!-- Teams link notice -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px">
+                      <tr>
+                        <td style="background:#FFFBEB;border-left:4px solid #FFE600;border-radius:0 8px 8px 0;padding:12px 16px">
+                          <span style="font-size:13px;color:#78350F;font-family:Arial,sans-serif">Le lien Microsoft Teams vous sera envoyé <strong>24h avant</strong> la session.</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="font-size:13px;color:#71717A;margin:0;line-height:1.7;font-family:Arial,sans-serif">
+                      Pour annuler ou reporter, contactez-nous à
+                      <a href="mailto:demo@tuniflow.tn" style="color:#0A0A0A;font-weight:700;text-decoration:none">demo@tuniflow.tn</a>.
                     </p>
-                    
-                    <!-- Details box -->
-                    <div style="background:#f5f5f5; border-radius:12px; padding:18px 20px; margin:20px 0;">
-                        <p style="margin:0 0 8px; font-size:13px; color:#888;">DÉTAILS DE LA SESSION</p>
-                        <p style="margin:4px 0; font-size:14px; color:#0A0A0A;"><strong>Date :</strong> {dateStr}</p>
-                        <p style="margin:4px 0; font-size:14px; color:#0A0A0A;"><strong>Heure :</strong> {dto.Heure}</p>
-                        <p style="margin:4px 0; font-size:14px; color:#0A0A0A;"><strong>Durée :</strong> 30 minutes</p>
-                        <p style="margin:4px 0; font-size:14px; color:#0A0A0A;"><strong>Support :</strong> Microsoft Teams</p>
-                        <p style="margin:4px 0; font-size:14px; color:#0A0A0A;"><strong>Entreprise :</strong> {dto.Entreprise}</p>
-                    </div>
-                    
-                    <p style="color:#555; line-height:1.8; font-size:13px;">
-                        Un lien Microsoft Teams vous sera envoyé 24h avant la session.<br>
-                        Si vous devez annuler ou reporter, contactez-nous à 
-                        <a href="mailto:demo@eyinvoice.tn" style="color:#FFE600; text-decoration:none;">demo@eyinvoice.tn</a>.
-                    </p>
-                </div>
-                
+
+                  </td>
+                </tr>
+
                 <!-- Footer -->
-                <div style="padding:16px 32px; border-top:1px solid #eee; font-size:11px; color:#aaa; text-align:center;">
-                    © 2026 EY-Factify · Ernst & Young Tunisia · Plateforme TEIF 2026
-                </div>
-            </div>
+                <tr>
+                  <td style="background:#FAFAFA;border-top:1px solid #F0F0F0;padding:16px 32px;text-align:center">
+                    <p style="font-size:11px;color:#A1A1AA;margin:0;line-height:1.7;font-family:Arial,sans-serif">
+                      © 2026 TuniFlow · Ernst &amp; Young Tunisia<br>
+                      <a href="mailto:demo@tuniflow.tn" style="color:#71717A;text-decoration:none">demo@tuniflow.tn</a>
+                      &nbsp;·&nbsp;
+                      <a href="mailto:support@tuniflow.tn" style="color:#71717A;text-decoration:none">support@tuniflow.tn</a>
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td></tr>
+          </table>
         </body>
         </html>
         """;
 
     private static string BuildInternalEmail(DemoBookingDto dto, string dateStr) => $"""
-        <h3>Nouvelle réservation de démo</h3>
-        <ul>
-            <li><strong>Nom :</strong> {dto.Prenom} {dto.Nom}</li>
-            <li><strong>Email :</strong> {dto.Email}</li>
-            <li><strong>Entreprise :</strong> {dto.Entreprise}</li>
-            <li><strong>Téléphone :</strong> {dto.Telephone ?? "—"}</li>
-            <li><strong>Date :</strong> {dateStr} à {dto.Heure}</li>
-            <li><strong>Message :</strong> {dto.Message ?? "—"}</li>
-        </ul>
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1.0">
+          <title>Nouvelle réservation démo</title>
+        </head>
+        <body style="margin:0;padding:0;background-color:#F4F4F5;font-family:Arial,Helvetica,sans-serif">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F5;padding:32px 0">
+            <tr><td align="center">
+              <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #E4E4E7">
+
+                <tr><td height="4" style="background:#FFE600;font-size:0;line-height:0">&nbsp;</td></tr>
+
+                <!-- Header -->
+                <tr>
+                  <td style="padding:20px 28px;border-bottom:1px solid #F0F0F0">
+                    <table cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="background:#FFE600;border-radius:6px;padding:5px 11px">
+                          <span style="font-size:13px;font-weight:900;color:#0A0A0A;font-family:Arial,sans-serif">TF</span>
+                        </td>
+                        <td style="padding-left:10px;vertical-align:middle">
+                          <span style="font-size:14px;font-weight:700;color:#0A0A0A;font-family:Arial,sans-serif">TuniFlow</span>
+                          <span style="font-size:11px;color:#A1A1AA;margin-left:6px;font-family:Arial,sans-serif">Notification interne</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding:28px 28px 20px">
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+                      <tr>
+                        <td style="background:#FFFBEB;border-left:4px solid #FFE600;border-radius:0 8px 8px 0;padding:11px 16px">
+                          <span style="font-size:13px;font-weight:700;color:#78350F;font-family:Arial,sans-serif">🗓 &nbsp;Nouvelle réservation de démo reçue</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAFA;border:1px solid #E4E4E7;border-radius:10px">
+                      <tr><td style="padding:16px 20px">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;width:130px;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Prénom</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0">{dto.Prenom}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Nom</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0">{dto.Nom}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Email</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0">
+                              <a href="mailto:{dto.Email}" style="color:#0A0A0A;text-decoration:none;font-weight:600">{dto.Email}</a>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Entreprise</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;font-weight:600">{dto.Entreprise}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Téléphone</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0">{dto.Telephone ?? "—"}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;vertical-align:top">Date &amp; heure</td>
+                            <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F0F0F0;font-weight:600">{dateStr} à {dto.Heure}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;vertical-align:top">Message</td>
+                            <td style="padding:7px 0;font-size:14px;color:#52525B;font-family:Arial,sans-serif;line-height:1.6">{dto.Message ?? "—"}</td>
+                          </tr>
+                        </table>
+                      </td></tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background:#FAFAFA;border-top:1px solid #F0F0F0;padding:14px 28px;text-align:center">
+                    <p style="font-size:11px;color:#A1A1AA;margin:0;font-family:Arial,sans-serif">TuniFlow · Notification interne · Ne pas répondre à cet e-mail</p>
+                  </td>
+                </tr>
+
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
         """;
 }

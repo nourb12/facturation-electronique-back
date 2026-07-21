@@ -1,0 +1,32 @@
+{
+  "case_id": "paiement_emis_standard",
+  "title": "Paiement emis standard",
+  "document_type": "paiement_emis",
+  "sample_file": "samples/paiement_emis_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.sens",
+    "document.statut_paiement",
+    "document.numero",
+    "document.date",
+    "document.mode_reglement",
+    "document.emetteur.nom",
+    "document.totaux.total_a_payer"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "paiement_emis",
+      "sens": "achat",
+      "statut_paiement": "paye",
+      "numero": "DEC-2026-0088",
+      "date": "10/05/2026",
+      "echeance": null,
+      "mode_reglement": "Chèque",
+      "emetteur": { "nom": "FOURNISSEUR MATIERES SA", "mf": "1234567ABC000", "adresse": null, "iban": null },
+      "destinataire": { "nom": "MA SOCIETE SARL", "code_client": null, "adresse": null, "telephone": null },
+      "articles": [],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": null, "tva": null, "timbre": null, "ttc": "1191.000", "total_a_payer": "1191.000", "devise": "TND" }
+    }
+  }
+}

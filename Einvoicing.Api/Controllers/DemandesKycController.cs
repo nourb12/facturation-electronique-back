@@ -45,6 +45,17 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
         await demandeService.RejeterDemandeAsync(id, req.Motif, ct);
         return Ok(new { message = "Demande refusee. Email de notification envoye." });
     }
+
+    [HttpPost("{id:guid}/demander-corrections")]
+    public async Task<IActionResult> DemanderCorrections(Guid id, [FromBody] DemandeCorrectionsRequest req, CancellationToken ct)
+    {
+        var flagCodes = req.FlagCodes ?? [];
+        if (flagCodes.Count == 0)
+            return BadRequest(new { message = "Selectionnez au moins un point a corriger." });
+
+        await demandeService.DemanderCorrectionsAsync(id, flagCodes, req.MessageAdmin, ct);
+        return Ok(new { message = "Email de corrections envoye." });
+    }
     // Mapping
 
     private async Task<List<DemandeAccesDto>> ChargerToutesDemandes(CancellationToken ct)
@@ -78,19 +89,19 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
             raisonSociale = d.RaisonSociale,
             matriculeFiscal = d.MatriculeFiscal,
             formeJuridique = profil?.FormeJuridique ?? string.Empty,
-            nomEntreprise = profil?.NomEntreprise ?? string.Empty,
-            adresse = profil?.Adresse ?? string.Empty,
-            gouvernorat = profil?.Gouvernorat ?? string.Empty,
-            codePostal = profil?.CodePostal ?? string.Empty,
-            devisePrincipale = profil?.DevisePrincipale ?? string.Empty,
-            siteWeb = profil?.SiteWeb ?? string.Empty,
+            nomEntreprise = profil?.NomEntreprise ?? d.RaisonSociale,
+            adresse = profil?.Adresse ?? d.Adresse,
+            gouvernorat = profil?.Gouvernorat ?? d.Gouvernorat,
+            codePostal = profil?.CodePostal ?? d.CodePostal,
+            devisePrincipale = profil?.DevisePrincipale ?? d.DevisePrincipale,
+            siteWeb = profil?.SiteWeb ?? d.SiteWeb ?? string.Empty,
             email = contact?.Email ?? d.Email,
             telephone = contact?.Telephone ?? d.Telephone ?? string.Empty,
             telEntreprise = profil?.TelEntreprise ?? d.Telephone ?? string.Empty,
-            respPrenom = resp?.RespPrenom ?? string.Empty,
-            respNom = resp?.RespNom ?? string.Empty,
-            respEmail = resp?.RespEmail ?? contact?.Email ?? d.Email,
-            respFonction = ResolveRespFonction(resp),
+            respPrenom = resp?.RespPrenom ?? d.RespPrenom,
+            respNom = resp?.RespNom ?? d.RespNom,
+            respEmail = resp?.RespEmail ?? d.RespEmail ?? contact?.Email ?? d.Email,
+            respFonction = ResolveRespFonction(resp, d.RespFonction),
             statut = MapStatut(d.Statut),
             score = d.ScoreKyc,
             decision = scoring?.Decision ?? "RevisionManuelle",
@@ -118,11 +129,11 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
         _ => "EnAttente"
     };
 
-    private static string ResolveRespFonction(ResponsableLegal? resp)
+    private static string ResolveRespFonction(ResponsableLegal? resp, string? fallback)
     {
-        if (resp is null) return string.Empty;
+        if (resp is null) return fallback ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(resp.RespFonctionAutre)) return resp.RespFonctionAutre;
-        return resp.RespFonction ?? string.Empty;
+        return resp.RespFonction ?? fallback ?? string.Empty;
     }
 
     private static T? TryParse<T>(string? json)
@@ -134,6 +145,7 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
     // Records locaux
 
     public record RefusRequest(string Motif);
+    public record DemandeCorrectionsRequest(List<string>? FlagCodes, string? MessageAdmin);
 
     private sealed class InscriptionData
     {

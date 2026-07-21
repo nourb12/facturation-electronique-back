@@ -1,0 +1,185 @@
+name: tuniflow-devops
+
+services:
+  jenkins:
+    build:
+      context: ./devops/jenkins
+      dockerfile: Dockerfile
+    container_name: tuniflow-jenkins
+    user: root
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    environment:
+      JENKINS_BACKEND_PATH: /host_mnt/c/backendpfe/einvoicing
+      JENKINS_FRONTEND_PATH: /host_mnt/c/frontendpfe/ey-invoice-portal
+      JENKINS_MOBILE_PATH: /host_mnt/c/mobile/ey_invoice_mobile
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace/backend
+      - ../../frontendpfe/ey-invoice-portal:/workspace/frontend
+      - ../../mobile/ey_invoice_mobile:/workspace/mobile
+      - ./:/host_mnt/c/backendpfe/einvoicing
+      - ../../frontendpfe/ey-invoice-portal:/host_mnt/c/frontendpfe/ey-invoice-portal
+      - ../../mobile/ey_invoice_mobile:/host_mnt/c/mobile/ey_invoice_mobile
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  sonarqube-db:
+    image: postgres:16-alpine
+    container_name: tuniflow-sonarqube-db
+    env_file:
+      - ./devops/.env.devops
+    environment:
+      POSTGRES_USER: sonarqube
+      POSTGRES_PASSWORD: ${SONARQUBE_DB_PASSWORD:-sonarqube_local_password}
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonarqube_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonarqube -d sonarqube"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: tuniflow-sonarqube
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    ports:
+      - "9000:9000"
+    env_file:
+      - ./devops/.env.devops
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: sonarqube
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_DB_PASSWORD:-sonarqube_local_password}
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  nexus:
+    image: sonatype/nexus3:3.75.1
+    container_name: tuniflow-nexus
+    ports:
+      - "8083:8081"
+      - "8085:8085"
+    volumes:
+      - nexus_data:/nexus-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: tuniflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - blackbox-exporter
+      - cadvisor
+      - node-exporter
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: tuniflow-grafana
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./devops/.env.devops
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123!}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./devops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./devops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: tuniflow-cadvisor
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: tuniflow-node-exporter
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: tuniflow-blackbox-exporter
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    volumes:
+      - ./devops/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    networks:
+      - tuniflow-platform
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+  sonarqube_db:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  nexus_data:
+  grafana_data:
+
+networks:
+  tuniflow-platform:
+    name: tuniflow-platform
+    external: true

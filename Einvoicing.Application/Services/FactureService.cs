@@ -34,13 +34,27 @@ public sealed class FactureService(
         if (!client.EstActif)
             throw new ValidationMetierException("Le client est inactif.");
 
+        if (req.TypeFacture == Domain.Enums.TypeFacture.Avoir)
+        {
+            if (req.FactureOrigineId is null)
+                throw new ValidationMetierException("Un avoir doit etre lie a une facture d'origine.");
+
+            var origine = await factureRepo.ObtenirParIdAsync(req.FactureOrigineId.Value, ct)
+                ?? throw new NotFoundException("Facture d'origine introuvable.");
+            if (origine.EntrepriseId != entrepriseId || origine.ClientId != req.ClientId)
+                throw new ValidationMetierException("L'avoir doit viser une facture du meme client et de la meme entreprise.");
+            if (origine.TypeFacture == Domain.Enums.TypeFacture.Avoir)
+                throw new ValidationMetierException("Un avoir ne peut pas avoir un autre avoir comme origine.");
+        }
+
         var numero = await numeroService.GenererNumeroAsync(entrepriseId, ct);
 
         var facture = Facture.Creer(
             entrepriseId, req.ClientId, creePar,
             numero, req.TypeFacture, req.ModePaiement,
             req.DateEcheance, req.Reference, req.Notes,
-            req.ConditionsPaiement, req.Devise, req.FactureOrigineId);
+            req.ConditionsPaiement, req.Devise, req.AppliquerRS,
+            req.CodeRS, req.TauxRS, req.FactureOrigineId);
 
         int ordre = 1;
         foreach (var ligneReq in req.Lignes)
@@ -95,8 +109,8 @@ public sealed class FactureService(
                 f.Id, f.Numero, client?.Nom ?? "-",
                 f.Statut.ToString(), f.TypeFacture.ToString(),
                 f.DateEmission, f.DateEcheance,
-                f.TotalTtc, f.MontantPaye,
-                f.EstEnRetard, f.Devise));
+                f.TotalTtc, f.AppliquerRS, f.MontantRS, f.NetAPayer,
+                f.MontantPaye, f.EstEnRetard, f.Devise));
         }
 
         return new ListeFacturesDto(dtos, total, filtre.Page, filtre.ParPage);
@@ -116,7 +130,8 @@ public sealed class FactureService(
 
         facture.MettreAJourInfos(
             req.ModePaiement, req.DateEcheance,
-            req.Reference, req.Notes, req.ConditionsPaiement);
+            req.Reference, req.Notes, req.ConditionsPaiement,
+            req.AppliquerRS, req.CodeRS, req.TauxRS);
 
         foreach (var ligneExistante in facture.Lignes.ToList())
             facture.SupprimerLigne(ligneExistante.Id);
@@ -204,6 +219,41 @@ public sealed class FactureService(
 
         var client = await clientRepo.ObtenirParIdAsync(facture.ClientId, ct);
         return await MapToDtoAsync(facture, client!, ct);
+    }
+
+    public async Task<FactureDto> ConvertirEnFactureAsync(
+        Guid id, Guid entrepriseId, Guid creePar, ConvertirFactureRequest req, CancellationToken ct = default)
+    {
+        var source = await factureRepo.ObtenirAvecDetailsAsync(id, ct)
+            ?? throw new NotFoundException("Document source introuvable.");
+        if (source.EntrepriseId != entrepriseId) throw new AccesRefuseException();
+        if (source.TypeFacture == Domain.Enums.TypeFacture.Facture)
+            throw new ValidationMetierException("Ce document est deja une facture.");
+
+        var request = new CreerFactureRequest(
+            source.ClientId,
+            Domain.Enums.TypeFacture.Facture,
+            source.ModePaiement,
+            req.DateEcheance ?? source.DateEcheance,
+            source.Lignes.OrderBy(l => l.Ordre).Select(l => new CreerLigneFactureRequest(
+                l.Designation,
+                l.Quantite,
+                l.PrixUnitaire,
+                l.TauxTva,
+                l.ProduitId,
+                l.Description,
+                l.Unite,
+                l.TauxRemise)).ToList(),
+            req.Reference ?? $"Convertie depuis {source.Numero}",
+            source.Notes,
+            source.ConditionsPaiement,
+            source.Devise,
+            source.AppliquerRS,
+            source.CodeRS,
+            source.TauxRS,
+            source.Id);
+
+        return await CreerAsync(entrepriseId, creePar, request, ct);
     }
 
     public async Task<StatistiquesFacturesDto> ObtenirStatistiquesAsync(
@@ -356,7 +406,7 @@ public sealed class FactureService(
     </div>
   </div>
   <div class=""footer"">
-    <div class=""footer-brand"">Généré le {now} | TunisFlow | TEIF {ent.VersionTeif}</div>
+    <div class=""footer-brand"">Généré le {now} | TuniFlow | TEIF {ent.VersionTeif}</div>
     <div style=""font-size:10px;color:#ccc"">Page 1 / 1</div>
   </div>
 </div>
@@ -394,6 +444,7 @@ public sealed class FactureService(
             f.ModePaiement.ToString(), f.Devise,
             f.DateEmission, f.DateEcheance, f.DatePaiement,
             f.TotalHt, f.TotalTva, f.TotalTtc,
+            f.AppliquerRS, f.CodeRS, f.TauxRS, f.BaseRS, f.MontantRS, f.NetAPayer,
             f.MontantPaye, f.MontantRestant, f.EstEnRetard,
             f.Notes, f.ConditionsPaiement,
             !string.IsNullOrEmpty(f.XmlTeif),

@@ -3,7 +3,7 @@ version: "3.9"
 services:
   ocr-service:
     build: .
-    container_name: tunisflow-ocr
+    container_name: tuniflow-ocr
     ports:
       - "8000:8000"
     environment:

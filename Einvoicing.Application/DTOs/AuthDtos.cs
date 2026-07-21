@@ -33,7 +33,8 @@ public record RegisterRequest(
 
 public record LoginRequest(
     string Email,
-    string MotDePasse
+    string MotDePasse,
+    bool AdminConsole = false
 );
 
 
@@ -104,19 +105,21 @@ public record Activer2FARequest(
 
 
 
+public abstract record LoginResult;
+
 public record AuthResponse(
     string AccessToken,
     string RefreshToken,
     DateTime ExpireA,
     UtilisateurDto Utilisateur
-);
+): LoginResult;
 
 
 
 
 public record DeuxFARequisResponse(
     Guid UtilisateurId
-);
+): LoginResult;
 
 
 

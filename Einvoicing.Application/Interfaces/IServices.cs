@@ -15,7 +15,7 @@ namespace Einvoicing.Application.Interfaces;
 public interface IAuthService
 {
     Task<AuthResponse> InscrireAsync(RegisterRequest request, CancellationToken ct = default);
-    Task<object> ConnecterAsync(LoginRequest request, string? ip, string? userAgent, CancellationToken ct = default);
+    Task<LoginResult> ConnecterAsync(LoginRequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task<AuthResponse> Connecter2FAAsync(Login2FARequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task<AuthResponse> RafraichirTokenAsync(RefreshTokenRequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task DeconnecterAsync(string refreshToken, CancellationToken ct = default);
@@ -77,6 +77,11 @@ public interface IEmailService
     Task EnvoyerDemandeRejeteeAsync(
         string email, string prenom, string raisonSociale,
         string motif, CancellationToken ct = default);
+
+    Task EnvoyerDemandeCorrectionsAsync(
+        string email, string prenom, string raisonSociale,
+        IReadOnlyCollection<string> corrections, string? messageAdmin,
+        CancellationToken ct = default);
 
     Task EnvoyerNotifFactureAsync(
         string email, string nomClient, string numeroFacture,

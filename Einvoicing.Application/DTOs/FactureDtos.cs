@@ -16,6 +16,9 @@ public record CreerFactureRequest(
     string? Notes,
     string? ConditionsPaiement,
     string Devise = "TND",
+    bool AppliquerRS = false,
+    string? CodeRS = null,
+    decimal TauxRS = 0,
     Guid? FactureOrigineId = null
 );
 
@@ -36,7 +39,10 @@ public record MettreAJourFactureRequest(
     string? Reference,
     string? Notes,
     string? ConditionsPaiement,
-    List<CreerLigneFactureRequest> Lignes
+    List<CreerLigneFactureRequest> Lignes,
+    bool AppliquerRS = false,
+    string? CodeRS = null,
+    decimal TauxRS = 0
 );
 
 public record ValiderFactureRequest(string? Commentaire);
@@ -44,6 +50,11 @@ public record ValiderFactureRequest(string? Commentaire);
 public record RejeterFactureRequest(string Motif);
 
 public record AnnulerFactureRequest(string Motif);
+
+public record ConvertirFactureRequest(
+    DateTime? DateEcheance = null,
+    string? Reference = null
+);
 
 public record FiltreFacturesRequest(
     int Page = 1,
@@ -81,6 +92,12 @@ public record FactureDto(
     decimal TotalHt,
     decimal TotalTva,
     decimal TotalTtc,
+    bool AppliquerRS,
+    string? CodeRS,
+    decimal TauxRS,
+    decimal BaseRS,
+    decimal MontantRS,
+    decimal NetAPayer,
     decimal MontantPaye,
     decimal MontantRestant,
     bool EstEnRetard,
@@ -103,6 +120,9 @@ public record FactureListeDto(
     DateTime DateEmission,
     DateTime DateEcheance,
     decimal TotalTtc,
+    bool AppliquerRS,
+    decimal MontantRS,
+    decimal NetAPayer,
     decimal MontantPaye,
     bool EstEnRetard,
     string Devise

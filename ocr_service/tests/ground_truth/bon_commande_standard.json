@@ -1,0 +1,32 @@
+{
+  "case_id": "bon_commande_standard",
+  "title": "Bon de commande standard",
+  "document_type": "bon_commande",
+  "sample_file": "samples/bon_commande_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.numero",
+    "document.date",
+    "document.emetteur.nom",
+    "document.destinataire.nom",
+    "document.articles[0].designation"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "bon_commande",
+      "sens": "achat",
+      "statut_paiement": null,
+      "numero": "BC-2026-0033",
+      "date": "06/05/2026",
+      "echeance": "30 jours",
+      "mode_reglement": "Virement",
+      "emetteur": { "nom": "MA SOCIETE SARL", "mf": "7654321XYZ000", "adresse": "Lac 2 Tunis", "iban": null },
+      "destinataire": { "nom": "FOURNISSEUR MATIERES SA", "code_client": "FR-221", "adresse": "Ben Arous", "telephone": null },
+      "articles": [
+        { "reference": "MAT-01", "designation": "Matiere premiere", "quantite": "10", "prix_unitaire_ht": "80.000", "taux_tva": "19.00", "total_ht": "800.000" }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": "800.000", "tva": "152.000", "timbre": null, "ttc": "952.000", "total_a_payer": "952.000", "devise": "TND" }
+    }
+  }
+}

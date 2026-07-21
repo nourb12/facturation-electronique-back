@@ -14,6 +14,7 @@ public interface IFactureService
     Task<FactureDto> RejeterAsync(Guid id, Guid entrepriseId, Guid rejetePar, RejeterFactureRequest request, CancellationToken ct = default);
     Task<FactureDto> AnnulerAsync(Guid id, Guid entrepriseId, Guid annulerPar, AnnulerFactureRequest request, CancellationToken ct = default);
     Task<FactureDto> RemettreBrouillonAsync(Guid id, Guid entrepriseId, Guid remisePar, CancellationToken ct = default);
+    Task<FactureDto> ConvertirEnFactureAsync(Guid id, Guid entrepriseId, Guid creePar, ConvertirFactureRequest request, CancellationToken ct = default);
     Task<StatistiquesFacturesDto> ObtenirStatistiquesAsync(Guid entrepriseId, CancellationToken ct = default);
     Task<byte[]> GenererPdfAsync(Guid id, Guid entrepriseId, CancellationToken ct = default);
     Task<IReadOnlyList<HistoriqueFactureDto>> ObtenirHistoriqueAsync(Guid id, Guid entrepriseId, CancellationToken ct = default);

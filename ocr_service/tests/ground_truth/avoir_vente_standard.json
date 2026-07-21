@@ -1,0 +1,33 @@
+{
+  "case_id": "avoir_vente_standard",
+  "title": "Avoir vente standard",
+  "document_type": "avoir",
+  "sample_file": "samples/avoir_vente_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.sens",
+    "document.numero",
+    "document.date",
+    "document.emetteur.nom",
+    "document.destinataire.nom",
+    "document.totaux.ttc"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "avoir",
+      "sens": "vente",
+      "statut_paiement": "en_attente",
+      "numero": "AV-2026-0007",
+      "date": "09/05/2026",
+      "echeance": null,
+      "mode_reglement": null,
+      "emetteur": { "nom": "MA SOCIETE SARL", "mf": "7654321XYZ000", "adresse": "Lac 2 Tunis", "iban": null },
+      "destinataire": { "nom": "CLIENT DISTRIBUTION SA", "code_client": "C-7788", "adresse": "Sfax", "telephone": null },
+      "articles": [
+        { "reference": "RET-01", "designation": "Retour produit", "quantite": "1", "prix_unitaire_ht": "250.000", "taux_tva": "19.00", "total_ht": "250.000" }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": "250.000", "tva": "47.500", "timbre": null, "ttc": "297.500", "total_a_payer": "297.500", "devise": "TND" }
+    }
+  }
+}

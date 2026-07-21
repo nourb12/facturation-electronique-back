@@ -95,6 +95,16 @@ public sealed class ScannedDocument
         ModifieLe = DateTime.UtcNow;
     }
 
+    public void ChangerTypeDocument(Guid modifiePar, string documentType)
+    {
+        if (string.IsNullOrWhiteSpace(documentType))
+            throw new ValidationMetierException("Le type de document est requis.");
+
+        ModifiePar = modifiePar;
+        DocumentType = documentType.Trim();
+        ModifieLe = DateTime.UtcNow;
+    }
+
     public void AssocierTransaction(Guid modifiePar, Guid transactionId)
     {
         ModifiePar = modifiePar;

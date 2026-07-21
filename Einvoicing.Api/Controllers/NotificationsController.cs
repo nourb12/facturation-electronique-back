@@ -43,7 +43,7 @@ public class NotificationsController(
         {
             await smsService.EnvoyerAsync(
                 req.Telephone,
-                $"[TunisFlow] Code de verification : {req.Code}. Valable 10 minutes."
+                $"[TuniFlow] Code de verification : {req.Code}. Valable 10 minutes."
             );
             return Ok(new { message = "SMS envoye." });
         }
@@ -59,11 +59,11 @@ public class NotificationsController(
     {
         var sujet = req.Type switch
         {
-            "validee" => "Facture validee - TunisFlow",
+            "validee" => "Facture validee - TuniFlow",
             "rejetee" => "Facture rejetee - Action requise",
-            "payee" => "Paiement recu - TunisFlow",
+            "payee" => "Paiement recu - TuniFlow",
             "rappel" => "Rappel echeance facture",
-            _ => "Notification TunisFlow"
+            _ => "Notification TuniFlow"
         };
 
         try
@@ -81,11 +81,11 @@ public class NotificationsController(
             {
                 var sms = req.Type switch
                 {
-                    "validee" => $"[TunisFlow] Facture {req.NumeroFacture} validee. Montant: {req.MontantTtc:N3} TND.",
-                    "rejetee" => $"[TunisFlow] Facture {req.NumeroFacture} rejetee. Connectez-vous pour voir les details.",
-                    "payee" => $"[TunisFlow] Paiement recu pour facture {req.NumeroFacture}. Merci.",
-                    "rappel" => $"[TunisFlow] Rappel: Facture {req.NumeroFacture} ({req.MontantTtc:N3} TND) arrive a echeance.",
-                    _ => $"[TunisFlow] Mise a jour facture {req.NumeroFacture}."
+                    "validee" => $"[TuniFlow] Facture {req.NumeroFacture} validee. Montant: {req.MontantTtc:N3} TND.",
+                    "rejetee" => $"[TuniFlow] Facture {req.NumeroFacture} rejetee. Connectez-vous pour voir les details.",
+                    "payee" => $"[TuniFlow] Paiement recu pour facture {req.NumeroFacture}. Merci.",
+                    "rappel" => $"[TuniFlow] Rappel: Facture {req.NumeroFacture} ({req.MontantTtc:N3} TND) arrive a echeance.",
+                    _ => $"[TuniFlow] Mise a jour facture {req.NumeroFacture}."
                 };
                 await smsService.EnvoyerAsync(req.Telephone, sms);
             }

@@ -28,11 +28,21 @@ public class MettreAJourEntrepriseValidator : AbstractValidator<MettreAJourEntre
 {
     public MettreAJourEntrepriseValidator()
     {
-        RuleFor(x => x.Nom).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Adresse).NotEmpty().MaximumLength(300);
-        RuleFor(x => x.Ville).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.CodePostal).NotEmpty().MaximumLength(10);
+        RuleFor(x => x.Nom)
+            .MaximumLength(200)
+            .When(x => !string.IsNullOrWhiteSpace(x.Nom));
+        RuleFor(x => x.Email)
+            .EmailAddress()
+            .When(x => !string.IsNullOrWhiteSpace(x.Email));
+        RuleFor(x => x.Adresse)
+            .MaximumLength(300)
+            .When(x => !string.IsNullOrWhiteSpace(x.Adresse));
+        RuleFor(x => x.Ville)
+            .MaximumLength(100)
+            .When(x => !string.IsNullOrWhiteSpace(x.Ville));
+        RuleFor(x => x.CodePostal)
+            .MaximumLength(10)
+            .When(x => !string.IsNullOrWhiteSpace(x.CodePostal));
         RuleFor(x => x.DevisePrincipale)
             .Length(3)
             .When(x => !string.IsNullOrWhiteSpace(x.DevisePrincipale));

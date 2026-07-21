@@ -1,0 +1,32 @@
+{
+  "case_id": "ordre_fabrication_standard",
+  "title": "Ordre de fabrication standard",
+  "document_type": "ordre_fabrication",
+  "sample_file": "samples/ordre_fabrication_standard.pdf",
+  "required_paths": [
+    "document.type",
+    "document.numero",
+    "document.date",
+    "document.articles[0].reference",
+    "document.articles[0].designation",
+    "document.articles[0].quantite"
+  ],
+  "expected": {
+    "schema_version": "1.0",
+    "document": {
+      "type": "ordre_fabrication",
+      "sens": null,
+      "statut_paiement": null,
+      "numero": "OF-2026-0009",
+      "date": "11/05/2026",
+      "echeance": null,
+      "mode_reglement": null,
+      "emetteur": { "nom": "ATELIER PRODUCTION", "mf": null, "adresse": null, "iban": null },
+      "destinataire": { "nom": "MAGASIN STOCK", "code_client": null, "adresse": null, "telephone": null },
+      "articles": [
+        { "reference": "PF-001", "designation": "Produit fini test", "quantite": "100", "prix_unitaire_ht": null, "taux_tva": null, "total_ht": null }
+      ],
+      "totaux": { "brut_ht": null, "remise": null, "net_ht": null, "tva": null, "timbre": null, "ttc": null, "total_a_payer": null, "devise": "TND" }
+    }
+  }
+}

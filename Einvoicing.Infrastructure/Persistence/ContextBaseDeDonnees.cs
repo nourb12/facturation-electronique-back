@@ -39,6 +39,8 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     public DbSet<SignatureRequest> Signatures => Set<SignatureRequest>();
     public DbSet<ExternalExchange> Echanges => Set<ExternalExchange>();
     public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
+    public DbSet<CalendrierEvent> CalendrierEvents => Set<CalendrierEvent>();
+    public DbSet<CalendrierTask> CalendrierTasks => Set<CalendrierTask>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -287,6 +289,12 @@ internal sealed class FactureConfiguration : IEntityTypeConfiguration<Facture>
         b.Property(f => f.TotalTva).HasColumnType("numeric(15,3)");
         b.Property(f => f.TotalTtc).HasColumnType("numeric(15,3)");
         b.Property(f => f.MontantPaye).HasColumnType("numeric(15,3)");
+        b.Property(f => f.AppliquerRS).HasDefaultValue(false);
+        b.Property(f => f.CodeRS).HasMaxLength(20);
+        b.Property(f => f.TauxRS).HasColumnType("numeric(5,3)");
+        b.Property(f => f.BaseRS).HasColumnType("numeric(15,3)");
+        b.Property(f => f.MontantRS).HasColumnType("numeric(15,3)");
+        b.Property(f => f.NetAPayer).HasColumnType("numeric(15,3)");
         b.Property(f => f.Notes).HasMaxLength(1000);
         b.Property(f => f.ConditionsPaiement).HasMaxLength(500);
         b.Property(f => f.XmlTeif).HasColumnType("text");
@@ -474,5 +482,36 @@ internal sealed class DemoRequestConfiguration : IEntityTypeConfiguration<DemoRe
         b.HasIndex(d => d.Email);
         b.HasIndex(d => d.Status);
         b.HasIndex(d => d.CreatedAt);
+    }
+}
+
+internal sealed class CalendrierEventConfiguration : IEntityTypeConfiguration<CalendrierEvent>
+{
+    public void Configure(EntityTypeBuilder<CalendrierEvent> b)
+    {
+        b.ToTable("CalendrierEvents");
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Title).HasMaxLength(200).IsRequired();
+        b.Property(e => e.Type).HasMaxLength(30).IsRequired();
+        b.Property(e => e.StartTime).HasMaxLength(10);
+        b.Property(e => e.EndTime).HasMaxLength(10);
+        b.Property(e => e.LinkedClientName).HasMaxLength(200);
+        b.Property(e => e.LinkedAmount).HasColumnType("numeric(15,3)");
+        b.Property(e => e.ZoomLink).HasMaxLength(500);
+        b.HasIndex(e => e.EntrepriseId);
+        b.HasIndex(e => new { e.EntrepriseId, e.Date });
+    }
+}
+
+internal sealed class CalendrierTaskConfiguration : IEntityTypeConfiguration<CalendrierTask>
+{
+    public void Configure(EntityTypeBuilder<CalendrierTask> b)
+    {
+        b.ToTable("CalendrierTasks");
+        b.HasKey(t => t.Id);
+        b.Property(t => t.Title).HasMaxLength(200).IsRequired();
+        b.Property(t => t.Priority).HasMaxLength(20).IsRequired();
+        b.HasIndex(t => t.EntrepriseId);
+        b.HasIndex(t => new { t.EntrepriseId, t.Date });
     }
 }
