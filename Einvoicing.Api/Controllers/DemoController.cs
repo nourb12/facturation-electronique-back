@@ -307,6 +307,41 @@ public class DemoController : ControllerBase
         """;
     }
 
+    /// <summary>Replanifier le créneau d'une demande de démonstration.</summary>
+    [Authorize(Policy = "SuperOuAdmin")]
+    [HttpPatch("requests/{id}/schedule")]
+    public async Task<IActionResult> UpdateSchedule(Guid id, [FromBody] UpdateDemoScheduleDto dto)
+    {
+        if (dto.PreferredDate == default || string.IsNullOrWhiteSpace(dto.PreferredTime))
+            return BadRequest(new { success = false, message = "La date et l'heure sont obligatoires." });
+
+        try
+        {
+            var request = await _demoRepository.GetByIdAsync(id);
+            if (request == null)
+                return NotFound(new { success = false, message = "Demande non trouvée" });
+
+            request.Update(
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.Company,
+                dto.PreferredDate,
+                dto.PreferredTime,
+                request.Phone,
+                request.Message);
+            _demoRepository.Update(request);
+            await _demoRepository.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Créneau mis à jour" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors de la replanification de la demande {Id}", id);
+            return StatusCode(500, new { success = false, message = "Une erreur est survenue" });
+        }
+    }
+
     private static string BuildInternalEmail(DemoBookingDto dto, string dateStr) => $"""
         <!DOCTYPE html>
         <html lang="fr">
