@@ -27,8 +27,9 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         var taxes = await db.Taxes.CountAsync(t => t.EntrepriseId == entrepriseId, ct);
         var rs = await db.ParametresFiscaux.CountAsync(p => p.EntrepriseId == entrepriseId && p.InclureRetenueSource && p.EstActif, ct);
 
-        var plan = PlanComptable();
-        var ecritures = BuildEcritures(factures, paiements, transactions, clients);
+        var plan = await EnsurePlanComptableAsync(entrepriseId.Value, ct);
+        var ecrituresManuelles = await db.EcrituresComptables.Where(e => e.EntrepriseId == entrepriseId).ToListAsync(ct);
+        var ecritures = BuildEcritures(factures, paiements, transactions, clients, ecrituresManuelles);
         var balance = BuildBalance(ecritures, plan);
         var tvaDeductible = transactions.Where(t => t.RecoverableVatAmount.HasValue).Sum(t => t.RecoverableVatAmount!.Value);
         var tvaCollectee = factures.Where(f => f.TypeFacture != TypeFacture.Avoir).Sum(f => f.TotalTva);
@@ -50,23 +51,115 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
                 new("RS41", "danger", "ti-shield-exclamation", "Retenues a la source", $"{rs} taux actifs pour le recapitulatif modele 41.", "28/mois"),
                 new("OCR", "info", "ti-file-check", "OCR mobile connecte", $"{transactions.Count(t => t.Source == DocumentSource.MobileApp)} transactions mobiles a tester.", "Temps reel")
             ],
-            CalendrierFiscal: CalendrierFiscal(),
+            CalendrierFiscal: BuildCalendrierFiscal(DateTime.UtcNow, BuildFiscalSnapshot(factures, transactions)),
             PlanComptable: plan,
             Ecritures: ecritures,
             Journaux: BuildJournaux(ecritures),
             Balance: balance,
             GrandLivre: BuildGrandLivre(balance, ecritures),
-            Actifs: Actifs(),
-            Etats: Etats(),
-            Exercices: Exercices(),
+            Actifs: await LoadActifsAsync(entrepriseId.Value, ct),
+            Etats: BuildEtats(ecritures, balance),
+            Exercices: await LoadExercicesAsync(entrepriseId.Value, ct),
             Analytique: BuildAnalytique(transactions)));
     }
 
-    [HttpGet("plan-comptable")] public IActionResult Plan() => Ok(PlanComptable());
-    [HttpGet("calendrier-fiscal")] public IActionResult Fiscal() => Ok(CalendrierFiscal());
-    [HttpGet("actifs")] public IActionResult Immobilisations() => Ok(Actifs());
-    [HttpGet("etats")] public IActionResult EtatsComptables() => Ok(Etats());
-    [HttpGet("exercices")] public IActionResult ExercicesComptables() => Ok(Exercices());
+    [HttpGet("plan-comptable")]
+    public async Task<IActionResult> Plan(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        return entrepriseId is null ? NotFound() : Ok(await EnsurePlanComptableAsync(entrepriseId.Value, ct));
+    }
+
+    [HttpPost("plan-comptable")]
+    public async Task<IActionResult> AjouterCompte([FromBody] CreerCompteRequest request, CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        if (entrepriseId is null) return NotFound();
+        if (await db.ComptesComptables.AnyAsync(c => c.EntrepriseId == entrepriseId && c.Numero == request.Numero.Trim(), ct))
+            return Conflict(new { message = "Ce compte existe déjà." });
+        var compte = CompteComptable.Creer(entrepriseId.Value, request.Numero, request.Intitule, request.Classe, request.Nature, request.Usage);
+        db.ComptesComptables.Add(compte);
+        await db.SaveChangesAsync(ct);
+        return Created($"/api/comptabilite/plan-comptable/{compte.Id}", ToPlanCompteDto(compte));
+    }
+
+    [HttpGet("calendrier-fiscal")]
+    public async Task<IActionResult> Fiscal(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        if (entrepriseId is null) return NotFound();
+        var factures = await db.Factures.Where(f => f.EntrepriseId == entrepriseId).ToListAsync(ct);
+        var transactions = await db.Transactions.Where(t => t.EntrepriseId == entrepriseId).ToListAsync(ct);
+        return Ok(BuildCalendrierFiscal(DateTime.UtcNow, BuildFiscalSnapshot(factures, transactions)));
+    }
+
+    [HttpGet("actifs")]
+    public async Task<IActionResult> Immobilisations(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        return entrepriseId is null ? NotFound() : Ok(await LoadActifsAsync(entrepriseId.Value, ct));
+    }
+
+    [HttpPost("actifs")]
+    public async Task<IActionResult> CreerActif([FromBody] CreerActifRequest request, CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        if (entrepriseId is null) return NotFound();
+        var actif = ActifComptable.Creer(entrepriseId.Value, request.Label, request.Famille, request.Compte, request.Taux, request.Acquisition,
+            request.DateAcquisition ?? DateTime.UtcNow, request.Statut);
+        db.ActifsComptables.Add(actif);
+        await db.SaveChangesAsync(ct);
+        return Created($"/api/comptabilite/actifs/{actif.Id}", ToActifDto(actif));
+    }
+
+    [HttpPatch("actifs/{id:guid}/taux")]
+    public async Task<IActionResult> ModifierTauxActif(Guid id, [FromBody] ModifierTauxActifRequest request, CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        var actif = await db.ActifsComptables.SingleOrDefaultAsync(a => a.Id == id && a.EntrepriseId == entrepriseId, ct);
+        if (actif is null) return NotFound();
+        actif.ChangerTaux(request.Taux);
+        await db.SaveChangesAsync(ct);
+        return Ok(ToActifDto(actif));
+    }
+    [HttpGet("etats")]
+    public async Task<IActionResult> EtatsComptables(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        if (entrepriseId is null) return NotFound();
+        var data = await LoadAsync(ct);
+        return Ok(BuildEtats(data.Ecritures, BuildBalance(data.Ecritures, await EnsurePlanComptableAsync(entrepriseId.Value, ct))));
+    }
+    [HttpGet("exercices")]
+    public async Task<IActionResult> ExercicesComptables(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        return entrepriseId is null ? NotFound() : Ok(await LoadExercicesAsync(entrepriseId.Value, ct));
+    }
+
+    [HttpPost("exercices")]
+    public async Task<IActionResult> OuvrirExercice([FromBody] OuvrirExerciceRequest request, CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        if (entrepriseId is null) return NotFound();
+        if (await db.ExercicesComptables.AnyAsync(e => e.EntrepriseId == entrepriseId && e.Annee == request.Annee, ct))
+            return Conflict(new { message = "Cet exercice existe déjà." });
+        var exercice = ExerciceComptable.Creer(entrepriseId.Value, request.Annee);
+        db.ExercicesComptables.Add(exercice);
+        await db.SaveChangesAsync(ct);
+        return Created($"/api/comptabilite/exercices/{exercice.Id}", ToExerciceDto(exercice));
+    }
+
+    [HttpPost("exercices/{id:guid}/cloturer")]
+    public async Task<IActionResult> CloturerExercice(Guid id, CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        var exercice = await db.ExercicesComptables.SingleOrDefaultAsync(e => e.Id == id && e.EntrepriseId == entrepriseId, ct);
+        if (exercice is null) return NotFound();
+        exercice.Cloturer();
+        await db.SaveChangesAsync(ct);
+        return Ok(ToExerciceDto(exercice));
+    }
 
     [HttpGet("ecritures")]
     public async Task<IActionResult> Ecritures(CancellationToken ct) => Ok((await LoadAsync(ct)).Ecritures);
@@ -75,13 +168,18 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
     public async Task<IActionResult> Journaux(CancellationToken ct) => Ok(BuildJournaux((await LoadAsync(ct)).Ecritures));
 
     [HttpGet("balance")]
-    public async Task<IActionResult> Balance(CancellationToken ct) => Ok(BuildBalance((await LoadAsync(ct)).Ecritures, PlanComptable()));
+    public async Task<IActionResult> Balance(CancellationToken ct)
+    {
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        return Ok(BuildBalance((await LoadAsync(ct)).Ecritures, entrepriseId is null ? [] : await EnsurePlanComptableAsync(entrepriseId.Value, ct)));
+    }
 
     [HttpGet("grand-livre")]
     public async Task<IActionResult> GrandLivre(CancellationToken ct)
     {
         var data = await LoadAsync(ct);
-        var balance = BuildBalance(data.Ecritures, PlanComptable());
+        var entrepriseId = await EntrepriseIdAsync(ct);
+        var balance = BuildBalance(data.Ecritures, entrepriseId is null ? [] : await EnsurePlanComptableAsync(entrepriseId.Value, ct));
         return Ok(BuildGrandLivre(balance, data.Ecritures));
     }
 
@@ -103,7 +201,8 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         var paiements = await db.Paiements.Where(p => p.EntrepriseId == entrepriseId).ToListAsync(ct);
         var transactions = await db.Transactions.Where(t => t.EntrepriseId == entrepriseId).ToListAsync(ct);
         var clients = await db.Clients.Where(c => c.EntrepriseId == entrepriseId).ToDictionaryAsync(c => c.Id, c => c.Nom, ct);
-        return new(BuildEcritures(factures, paiements, transactions, clients));
+        var ecrituresManuelles = await db.EcrituresComptables.Where(e => e.EntrepriseId == entrepriseId).ToListAsync(ct);
+        return new(BuildEcritures(factures, paiements, transactions, clients, ecrituresManuelles));
     }
 
     private async Task<Guid?> EntrepriseIdAsync(CancellationToken ct)
@@ -113,7 +212,8 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         List<Facture> factures,
         List<Paiement> paiements,
         List<Transaction> transactions,
-        Dictionary<Guid, string> clients)
+        Dictionary<Guid, string> clients,
+        IEnumerable<EcritureComptable>? ecrituresManuelles = null)
     {
         var rows = new List<EcritureDto>();
         var i = 1;
@@ -188,6 +288,12 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
             }
         }
 
+        foreach (var ecriture in ecrituresManuelles ?? [])
+        {
+            rows.Add(Row(i++, ecriture.Date, ecriture.Journal, ecriture.Piece, ecriture.Compte, ecriture.Libelle,
+                ecriture.Tiers ?? string.Empty, ecriture.Debit, ecriture.Credit, ecriture.Statut));
+        }
+
         return rows;
     }
 
@@ -214,7 +320,7 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
             Credit: Math.Round(credit, 3),
             Statut: statut);
 
-    private static List<BalanceDto> BuildBalance(List<EcritureDto> ecritures, PlanCompteDto[] plan)
+    private static List<BalanceDto> BuildBalance(List<EcritureDto> ecritures, IReadOnlyList<PlanCompteDto> plan)
         => ecritures
             .GroupBy(e => e.Compte)
             .OrderBy(g => g.Key)
@@ -283,7 +389,7 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
             })
             .ToList();
 
-    private static PlanCompteDto[] PlanComptable() =>
+    private static PlanCompteDto[] PlanComptableParDefaut() =>
     [
         new("101000", "Capital social", "Classe 1", "Capitaux propres", "Ouverture et mouvements du capital"),
         new("218200", "Materiel de transport", "Classe 2", "Immobilisations", "Vehicules et amortissements"),
@@ -303,33 +409,71 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         new("707000", "Ventes de marchandises", "Classe 7", "Produits", "Facturation client")
     ];
 
-    private static FiscalCalendarDto[] CalendrierFiscal() =>
+    private static FiscalCalendarDto[] BuildCalendrierFiscal(DateTime date, FiscalSnapshot fiscal) =>
     [
-        new("D15", "28/mois", "Declaration mensuelle D15", "TVA, FODEC, TCL et timbre fiscal."),
-        new("RS41", "28/mois", "Retenue a la source - Modele 41", "RS 1.5%, 3%, 5%, 10%, 15%."),
-        new("CNSS", "15/trim.", "CNSS trimestrielle", "Masse salariale et cotisations."),
-        new("IS", "25 avr./mai", "Declaration annuelle IS", "Depot annuel selon forme juridique.")
+        new("D15", new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)).ToString("dd/MM/yyyy"), "Déclaration mensuelle D15", "Montant calculé depuis les factures et achats de la période.", fiscal.TvaNette),
+        new("RS41", new DateTime(date.Year, date.Month, DateTime.DaysInMonth(date.Year, date.Month)).ToString("dd/MM/yyyy"), "Retenue à la source - État 257", "Montant calculé depuis les factures fournisseur avec retenue.", fiscal.RetenueSource),
+        new("CNSS", "15 du trimestre", "Déclaration CNSS", "Échéance liée aux salaires validés.", 0),
+        new("IS", $"25/04/{date.Year + 1}", "Déclaration annuelle IS", "Résultat annuel estimé depuis les écritures validées.", fiscal.Resultat)
     ];
 
-    private static ActifDto[] Actifs() =>
+    private static EtatComptableDto[] BuildEtats(IReadOnlyList<EcritureDto> ecritures, IReadOnlyList<BalanceDto> balance) =>
     [
-        new("A1", "Serveur comptable", "Materiel informatique", "218300", 33, 12400m, 4092m, 8308m, "En service"),
-        new("A2", "Vehicule commercial", "Transport", "218200", 20, 58000m, 11600m, 46400m, "En service")
+        new("BILAN", "ti-layout-board-split", "Bilan NCT", "Actifs, capitaux propres et passifs calculés depuis la balance.", "NCT 01",
+            Math.Round(balance.Where(row => row.Compte.StartsWith("1") || row.Compte.StartsWith("2") || row.Compte.StartsWith("3") || row.Compte.StartsWith("4") || row.Compte.StartsWith("5")).Sum(row => row.Solde), 3)),
+        new("RESULTAT", "ti-report-money", "État de résultat", "Produits, charges et résultat net calculés depuis les écritures.", "NCT 01",
+            Math.Round(ecritures.Where(row => row.Compte.StartsWith("7")).Sum(row => row.Credit - row.Debit) - ecritures.Where(row => row.Compte.StartsWith("6")).Sum(row => row.Debit - row.Credit), 3)),
+        new("CASH", "ti-arrows-exchange", "Flux de trésorerie", "Encaissements et décaissements calculés depuis les comptes de trésorerie.", "NCT 07",
+            Math.Round(ecritures.Where(row => row.Compte.StartsWith("5")).Sum(row => row.Debit - row.Credit), 3))
     ];
 
-    private static EtatComptableDto[] Etats() =>
-    [
-        new("BILAN", "ti-layout-board-split", "Bilan NCT", "Actifs, capitaux propres et passifs.", "NCT 01"),
-        new("RESULTAT", "ti-report-money", "Etat de resultat", "Produits, charges et resultat net.", "NCT 01"),
-        new("CASH", "ti-arrows-exchange", "Flux de tresorerie", "Exploitation, investissement, financement.", "NCT 07")
-    ];
+    private static FiscalSnapshot BuildFiscalSnapshot(IReadOnlyList<Facture> factures, IReadOnlyList<Transaction> transactions)
+    {
+        var collectee = factures.Where(f => f.TypeFacture != TypeFacture.Avoir).Sum(f => f.TotalTva);
+        var deductible = transactions.Sum(t => t.RecoverableVatAmount ?? 0);
+        var resultat = factures.Where(f => f.TypeFacture != TypeFacture.Avoir).Sum(f => f.TotalHt)
+            - transactions.Where(t => t.Type == TypeTransaction.Sortie).Sum(t => t.Montant);
+        return new FiscalSnapshot(Math.Round(Math.Max(0, collectee - deductible), 3), 0, Math.Round(resultat, 3));
+    }
 
-    private static ExerciceDto[] Exercices() =>
-    [
-        new("OPEN", "Ouverture exercice 2026", "Report a nouveau et reprise balance.", "Valide"),
-        new("INV", "Inventaire annuel", "Stocks, immobilisations et provisions.", "En cours"),
-        new("CLOSE", "Cloture et resultat", "Ecritures de cloture et archivage.", "A venir")
-    ];
+
+    private async Task<List<PlanCompteDto>> EnsurePlanComptableAsync(Guid entrepriseId, CancellationToken ct)
+    {
+        var existing = await db.ComptesComptables.Where(c => c.EntrepriseId == entrepriseId).OrderBy(c => c.Numero).ToListAsync(ct);
+        if (existing.Count == 0)
+        {
+            db.ComptesComptables.AddRange(PlanComptableParDefaut().Select(c => CompteComptable.Creer(entrepriseId, c.Numero, c.Intitule, c.Classe, c.Nature, c.Usage)));
+            await db.SaveChangesAsync(ct);
+            existing = await db.ComptesComptables.Where(c => c.EntrepriseId == entrepriseId).OrderBy(c => c.Numero).ToListAsync(ct);
+        }
+        return existing.Select(ToPlanCompteDto).ToList();
+    }
+
+    private async Task<List<ActifDto>> LoadActifsAsync(Guid entrepriseId, CancellationToken ct)
+        => (await db.ActifsComptables.Where(a => a.EntrepriseId == entrepriseId).OrderByDescending(a => a.DateAcquisition).ToListAsync(ct)).Select(ToActifDto).ToList();
+
+    private async Task<List<ExerciceDto>> LoadExercicesAsync(Guid entrepriseId, CancellationToken ct)
+    {
+        var exercices = await db.ExercicesComptables.Where(e => e.EntrepriseId == entrepriseId).OrderByDescending(e => e.Annee).ToListAsync(ct);
+        if (exercices.Count == 0)
+        {
+            var current = ExerciceComptable.Creer(entrepriseId, DateTime.UtcNow.Year);
+            db.ExercicesComptables.Add(current);
+            await db.SaveChangesAsync(ct);
+            exercices = [current];
+        }
+        return exercices.Select(ToExerciceDto).ToList();
+    }
+
+    private static PlanCompteDto ToPlanCompteDto(CompteComptable compte) => new(compte.Numero, compte.Intitule, compte.Classe, compte.Nature, compte.Usage);
+    private static ActifDto ToActifDto(ActifComptable actif)
+    {
+        var dotation = Math.Round(actif.ValeurAcquisition * actif.TauxAmortissement / 100m, 3);
+        return new(actif.Id.ToString(), actif.Libelle, actif.Famille, actif.Compte, (int)actif.TauxAmortissement, actif.ValeurAcquisition, dotation,
+            Math.Round(Math.Max(0, actif.ValeurAcquisition - dotation), 3), actif.Statut);
+    }
+    private static ExerciceDto ToExerciceDto(ExerciceComptable exercice) => new(exercice.Id.ToString(), $"Exercice {exercice.Annee}",
+        $"Du {exercice.DateDebut:dd/MM/yyyy} au {exercice.DateFin:dd/MM/yyyy}.", exercice.Statut);
 
     private static string Clean(string value) => value.Replace("[COMPTA-SEED]", string.Empty).Trim();
 
@@ -338,25 +482,31 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         KpiDto[] Kpis,
         DashboardAlertDto[] Alertes,
         FiscalCalendarDto[] CalendrierFiscal,
-        PlanCompteDto[] PlanComptable,
+        IReadOnlyList<PlanCompteDto> PlanComptable,
         List<EcritureDto> Ecritures,
         List<JournalDto> Journaux,
         List<BalanceDto> Balance,
         List<GrandLivreDto> GrandLivre,
-        ActifDto[] Actifs,
+        IReadOnlyList<ActifDto> Actifs,
         EtatComptableDto[] Etats,
-        ExerciceDto[] Exercices,
+        IReadOnlyList<ExerciceDto> Exercices,
         List<AnalytiqueDto> Analytique);
     private sealed record KpiDto(string Key, string Label, decimal Value, string Type, string Hint, string Icon, string Tone);
     private sealed record DashboardAlertDto(string Code, string Level, string Icon, string Title, string Text, string Deadline);
-    private sealed record FiscalCalendarDto(string Code, string Echeance, string Label, string Detail);
+    private sealed record FiscalCalendarDto(string Code, string Echeance, string Label, string Detail, decimal Montant);
     private sealed record PlanCompteDto(string Numero, string Intitule, string Classe, string Nature, string Usage);
     private sealed record EcritureDto(string Id, string Date, string Journal, string Piece, string Compte, string Libelle, string Tiers, decimal Debit, decimal Credit, string Statut);
     private sealed record JournalDto(string Code, string Label, string Role, decimal Total, int NbPieces, string Controle);
     private sealed record BalanceDto(string Compte, string Intitule, decimal Debit, decimal Credit, decimal Solde);
     private sealed record GrandLivreDto(string Id, string Compte, string Intitule, string Mouvement, decimal Solde);
     private sealed record ActifDto(string Id, string Label, string Famille, string Compte, int Taux, decimal Acquisition, decimal Dotation, decimal Vnc, string Statut);
-    private sealed record EtatComptableDto(string Code, string Icon, string Label, string Description, string Norme);
+    private sealed record EtatComptableDto(string Code, string Icon, string Label, string Description, string Norme, decimal Montant);
     private sealed record ExerciceDto(string Code, string Label, string Detail, string Statut);
     private sealed record AnalytiqueDto(string Code, string Label, string Description, decimal Produits, decimal Charges, decimal Marge);
+    private sealed record FiscalSnapshot(decimal TvaNette, decimal RetenueSource, decimal Resultat);
 }
+
+public sealed record CreerCompteRequest(string Numero, string Intitule, string Classe, string Nature, string Usage);
+public sealed record CreerActifRequest(string Label, string Famille, string Compte, decimal Taux, decimal Acquisition, DateTime? DateAcquisition, string? Statut);
+public sealed record ModifierTauxActifRequest(decimal Taux);
+public sealed record OuvrirExerciceRequest(int Annee);

@@ -82,13 +82,38 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDemandeAccesService, DemandeAccesService>();
+builder.Services.AddScoped<IOtpDemandeAccesService, OtpDemandeAccesService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<KycScoringService>();
+builder.Services.AddScoped<ILatePaymentPredictionService, LatePaymentPredictionService>();
+builder.Services.AddScoped<ICashForecastService, CashForecastService>();
+builder.Services.AddScoped<ITransactionAnomalyService, TransactionAnomalyService>();
+builder.Services.AddScoped<IOcrErrorDetectionService, OcrErrorDetectionService>();
+builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
 builder.Services.AddHttpClient<IOcrClient, OcrClient>(client =>
 {
     var timeoutSeconds = builder.Configuration.GetValue("OcrService:TimeoutSeconds", 360);
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
+
+var machineLearningApiKey = builder.Configuration["MachineLearning:ApiKey"];
+if (string.IsNullOrWhiteSpace(machineLearningApiKey) || machineLearningApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException("MachineLearning:ApiKey doit etre configure via un secret ou une variable d'environnement.");
+
+builder.Services.AddHttpClient("MachineLearning", client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["MachineLearning:BaseUrl"]
+        ?? "http://127.0.0.1:8001"
+    );
+    client.DefaultRequestHeaders.Add("X-Internal-Api-Key", machineLearningApiKey);
+});
+builder.Services.AddHttpClient("Ollama", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://127.0.0.1:11434/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHttpClient("Sms", client => client.Timeout = TimeSpan.FromSeconds(15));
 
 
 builder.Services.AddScoped<IEntrepriseService, EntrepriseService>();
@@ -125,11 +150,13 @@ builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddSingleton<IRateLimiter, InMemoryRateLimiter>();
 
 builder.Services.Configure<RelanceOptions>(builder.Configuration.GetSection("Relances"));
+builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection("GoogleAuth"));
 builder.Services.AddHostedService<RelanceBackgroundService>();
 
 builder.Services.AddScoped<IUtilisateurRepository, UtilisateurRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
+builder.Services.AddScoped<IOtpDemandeAccesRepository, OtpDemandeAccesRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
 
 builder.Services.AddScoped<IEntrepriseRepository, EntrepriseRepository>();
@@ -240,6 +267,13 @@ else if (!Path.IsPathRooted(uploadsRoot))
     uploadsRoot = Path.Combine(app.Environment.ContentRootPath, uploadsRoot);
 }
 Directory.CreateDirectory(uploadsRoot);
+// Les pieces KYC ne doivent jamais etre accessibles comme fichiers publics.
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/uploads/kyc", StringComparison.OrdinalIgnoreCase), branch =>
+    branch.Run(context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return Task.CompletedTask;
+    }));
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsRoot),
@@ -263,6 +297,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AuditTrailMiddleware>();
 app.MapMetrics().AllowAnonymous();
 app.MapGet("/health", async (ContextBaseDeDonnees db) =>
 {

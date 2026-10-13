@@ -246,22 +246,28 @@ public sealed class AdminOverviewController(
     [HttpGet("audit")]
     public async Task<IActionResult> Audit(CancellationToken ct)
     {
-        var items = await db.HistoriqueFactures
+        var historique = await db.HistoriqueFactures
             .Join(db.Factures, h => h.FactureId, f => f.Id, (h, f) => new { h, f })
             .Join(db.Utilisateurs, x => x.h.EffectuePar, u => u.Id, (x, u) => new
             {
-                date = x.h.CreeLe,
-                utilisateur = u.Prenom + " " + u.Nom,
-                action = x.h.Action,
-                ressource = "Facture " + x.f.Numero,
-                ip = "-",
-                succes = true
+                x.h, x.f, utilisateur = u.Prenom + " " + u.Nom
             })
-            .OrderByDescending(x => x.date)
-            .Take(300)
             .ToListAsync(ct);
 
-        return Ok(items);
+        var historiques = historique.Select(x => new AuditTimelineItem(x.h.CreeLe, x.utilisateur, x.h.Action, $"Facture {x.f.Numero}", "Historique antérieur", true, x.h.Details, x.f.EntrepriseId.ToString()));
+        var evenementsBruts = await db.EvenementsAudit.OrderByDescending(a => a.CreeLe).Take(300).ToListAsync(ct);
+        var entrepriseParId = await db.Entreprises.ToDictionaryAsync(e => e.Id, e => e.Nom, ct);
+        var utilisateurParId = await db.Utilisateurs.ToDictionaryAsync(u => u.Id, u => $"{u.Prenom} {u.Nom}", ct);
+        var evenements = evenementsBruts.Select(a => new AuditTimelineItem(
+            a.CreeLe,
+            a.UtilisateurId is not null && utilisateurParId.TryGetValue(a.UtilisateurId.Value, out var utilisateur) ? utilisateur : "Système",
+            a.Action,
+            a.Ressource,
+            a.AdresseIp,
+            a.CodeReponse < 400,
+            a.Details,
+            a.EntrepriseId is not null && entrepriseParId.TryGetValue(a.EntrepriseId.Value, out var entreprise) ? entreprise : null));
+        return Ok(historiques.Concat(evenements).OrderByDescending(x => x.Date).Take(300));
     }
 
     private async Task<Einvoicing.Domain.Entities.Facture?> ChargerFactureAdminAsync(

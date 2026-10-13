@@ -1,0 +1,30 @@
+{
+  "data_source": "synthetic_injected_ocr_errors",
+  "rows": 4500,
+  "train_rows": 3600,
+  "test_rows": 900,
+  "error_rate": 0.2698,
+  "selected_model": "logistic_regression",
+  "selection_rule": "maximise recall, puis F1 et PR-AUC",
+  "metrics": [
+    {
+      "model": "logistic_regression",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "threshold": 0.42
+    },
+    {
+      "model": "lightgbm",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "threshold": 0.42
+    }
+  ],
+  "limitations": "Les erreurs sont simulées. Le modèle devra être réentraîné avec les corrections OCR réelles validées par les utilisateurs."
+}

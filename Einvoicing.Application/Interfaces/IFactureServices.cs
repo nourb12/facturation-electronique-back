@@ -36,6 +36,7 @@ public interface IFactureRepository
 {
     Task<Facture?> ObtenirParIdAsync(Guid id, CancellationToken ct = default);
     Task<Facture?> ObtenirAvecDetailsAsync(Guid id, CancellationToken ct = default);
+    Task<List<Facture>> ObtenirAvoirsOrigineAsync(Guid factureOrigineId, CancellationToken ct = default);
     Task<(List<Facture> Items, int Total)> ListerAsync(Guid entrepriseId, FiltreFacturesRequest filtre, CancellationToken ct = default);
     Task<List<Facture>> ListerEnRetardAsync(Guid entrepriseId, CancellationToken ct = default);
     Task<bool> RelanceDejaEnvoyeeAsync(Guid factureId, string action, CancellationToken ct = default);

@@ -12,8 +12,9 @@ public class DashboardServiceTests
 {
     private readonly Mock<IFactureRepository> _factureRepo = new();
     private readonly Mock<IEntrepriseRepository> _entrepriseRepo = new();
+    private readonly Mock<IUtilisateurRepository> _utilisateurRepo = new();
 
-    private DashboardService CreateService() => new(_factureRepo.Object, _entrepriseRepo.Object);
+    private DashboardService CreateService() => new(_factureRepo.Object, _entrepriseRepo.Object, _utilisateurRepo.Object);
 
     [Fact]
     public async Task ObtenirDashboardEntrepriseAsync_RetourneAlertesQuandRetard()
@@ -58,6 +59,8 @@ public class DashboardServiceTests
             .ReturnsAsync(new List<Entreprise> { e1, e2 });
         _factureRepo.Setup(r => r.ObtenirStatistiquesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new StatistiquesFacturesDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        _utilisateurRepo.Setup(r => r.ListerTousAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Utilisateur>());
 
         var service = CreateService();
 
@@ -66,4 +69,25 @@ public class DashboardServiceTests
         dto.TotalEntreprises.Should().Be(2);
         dto.EntreprisesActives.Should().Be(1);
     }
+
+    [Fact]
+    public async Task ObtenirDashboardAdminAsync_CompteLesUtilisateurs()
+    {
+        _entrepriseRepo.Setup(r => r.ListerToutesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Entreprise>());
+        _utilisateurRepo.Setup(r => r.ListerTousAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Utilisateur>
+            {
+                CreateUtilisateur("one@example.tn"),
+                CreateUtilisateur("two@example.tn"),
+                CreateUtilisateur("three@example.tn")
+            });
+
+        var dto = await CreateService().ObtenirDashboardAdminAsync();
+
+        dto.TotalUtilisateurs.Should().Be(3);
+    }
+
+    private static Utilisateur CreateUtilisateur(string email) => Utilisateur.Creer(
+        "Test", "Utilisateur", email, "hash", RoleUtilisateur.ResponsableEntreprise);
 }

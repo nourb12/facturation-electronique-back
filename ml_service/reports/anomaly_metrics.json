@@ -1,0 +1,37 @@
+{
+  "dataset": {
+    "source": "synthetic",
+    "rows": 18000,
+    "train_rows": 14400,
+    "test_rows": 3600,
+    "known_fraud_rate": 0.017,
+    "temporal_cutoff": 138697.204
+  },
+  "training": {
+    "supervision": "non_supervisee",
+    "label_usage": "Class est exclue de l'entraînement; elle sert uniquement à l'évaluation.",
+    "contamination": 0.02
+  },
+  "selection_rule": "max PR-AUC, puis F1, puis recall",
+  "models": [
+    {
+      "model": "isolation_forest",
+      "precision": 0.74,
+      "recall": 0.9737,
+      "f1": 0.8409,
+      "roc_auc": 0.9986,
+      "pr_auc": 0.9783,
+      "precision_at_k": 0.9408
+    },
+    {
+      "model": "local_outlier_factor",
+      "precision": 0.3077,
+      "recall": 0.3684,
+      "f1": 0.3353,
+      "roc_auc": 0.7806,
+      "pr_auc": 0.3402,
+      "precision_at_k": 0.3618
+    }
+  ],
+  "selected_model": "isolation_forest"
+}

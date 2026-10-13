@@ -66,6 +66,7 @@ public sealed class OcrExtractionResult
     public string? NomExtrait { get; set; }
     public string? PrenomExtrait { get; set; }
     public string? CinExtrait { get; set; }
+    public string? RibExtrait { get; set; }
     public string? FormeJuridiqueExtraite { get; set; }
     public string? AdresseExtraite { get; set; }
     public string? DateCreationExtraite { get; set; }
@@ -199,7 +200,7 @@ public sealed class KycScoringService
                 {
                     Code = $"{mm.Key}_incoherent",
                     Message = $"Incohérence {mm.Label} : formulaire = '{mm.FormValue}' / OCR = '{mm.OcrValue}'.",
-                    Severity = FlagSeverity.Error
+                    Severity = FlagSeverity.Critical
                 });
             }
 
@@ -247,38 +248,39 @@ public sealed class KycScoringService
             Reason = ocrReason
         });
 
-        // ── 5. RIB checksum (10 pts) ─────────────────────────────────────────
-        // Validation locale, aucune API externe
-        var ribPoints = 0;
-        if (!string.IsNullOrWhiteSpace(request.RespTel))
-        {
-            // Placeholder — le RIB est un fichier uploadé, pas un champ texte
-            // Dans une v2 : ajouter champ RibNumero au formulaire et valider ISO 7064
-            ribPoints = documentsComplets ? 10 : 0;
-        }
-        else
-        {
-            ribPoints = documentsComplets ? 10 : 0;
-        }
+        // ── 5. RIB extrait et contrôlé (10 pts) ───────────────────────────────
+        var ribDigits = Regex.Replace(ocr?.RibExtrait ?? string.Empty, @"\D", string.Empty);
+        var ribValide = ocr?.OcrSuccess == true && ribDigits.Length == 20;
+        var ribPoints = ribValide ? 10 : 0;
         breakdown.Add(new KycBreakdownItem
         {
-            Key = "rib_present",
-            Label = "RIB bancaire fourni",
+            Key = "rib_valide",
+            Label = "RIB bancaire extrait et controle",
             Points = ribPoints,
             MaxPoints = 10,
             Ok = ribPoints > 0,
-            Reason = ribPoints > 0 ? null : "RIB bancaire absent."
+            Reason = ribPoints > 0 ? null : "RIB bancaire non extrait ou format invalide (20 chiffres attendus)."
         });
+        if (!ribValide)
+            flags.Add(new KycFlag
+            {
+                Code = "rib_non_verifie",
+                Message = "Le RIB doit etre extrait par OCR et contenir 20 chiffres avant toute validation.",
+                Severity = FlagSeverity.Critical
+            });
 
         // ── Calcul score final + décision ─────────────────────────────────────
         var score = Math.Clamp(breakdown.Sum(b => b.Points), 0, 100);
         var hasCritical = flags.Any(f => f.Severity == FlagSeverity.Critical);
+        var requiresManualReview = hasCritical
+            || flags.Any(f => f.Code is "analyse_manuelle_requise" or "ocr_echoue" or "rib_non_verifie");
 
-        var decision = (score, hasCritical) switch
+        var decision = (score, hasCritical, requiresManualReview) switch
         {
-            (_, true) => KycDecision.RejetAutomatique,
-            ( >= 80, false) => KycDecision.AutoApprovalCandidate,
-            ( >= 50, false) => KycDecision.RevisionManuelle,
+            (_, true, _) => KycDecision.RevisionManuelle,
+            (_, false, true) => KycDecision.RevisionManuelle,
+            ( >= 80, false, false) => KycDecision.AutoApprovalCandidate,
+            ( >= 50, false, false) => KycDecision.RevisionManuelle,
             _ => KycDecision.RejetAutomatique
         };
 

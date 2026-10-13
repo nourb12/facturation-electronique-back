@@ -134,28 +134,34 @@ public class DemoController : ControllerBase
 
         try
         {
+            var isQuickRequest = dto.QuickRequest;
+            var preferredDate = dto.Date ?? DateTime.UtcNow;
+            var preferredTime = string.IsNullOrWhiteSpace(dto.Heure) ? "À convenir" : dto.Heure;
             var demoRequest = DemoRequest.Create(
                 dto.Prenom, dto.Nom, dto.Email, dto.Entreprise,
-                dto.Date, dto.Heure, dto.Telephone, dto.Message);
+                preferredDate, preferredTime, dto.Telephone, dto.Message);
 
             await _demoRepository.AddAsync(demoRequest);
             await _demoRepository.SaveChangesAsync();
 
-            var dateStr = dto.Date.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
+            var dateStr = isQuickRequest ? "À convenir" : preferredDate.ToString("dddd dd MMMM yyyy", new CultureInfo("fr-FR"));
+            var emailSubject = isQuickRequest
+                ? "Votre demande de démonstration est enregistrée — TuniFlow"
+                : "Votre session de démo est confirmée — TuniFlow";
 
             await _emailService.SendEmailAsync(
                 dto.Email,
-                "Votre session de démo est confirmée — TuniFlow",
-                BuildConfirmationEmail(dto, dateStr));
+                emailSubject,
+                BuildConfirmationEmail(dto, dateStr, isQuickRequest));
 
             await _emailService.SendEmailAsync(
                 "noreply.einvoicingportal@gmail.com",
-                $"[Démo] {dto.Prenom} {dto.Nom} — {dto.Entreprise} — {dateStr} {dto.Heure}",
+                $"[Démo] {dto.Prenom} {dto.Nom} — {dto.Entreprise} — {dateStr} {preferredTime}",
                 BuildInternalEmail(dto, dateStr));
 
             _logger.LogInformation(
                 "Réservation de démo confirmée : {Email} - {Entreprise} - {Date} {Heure}",
-                dto.Email, dto.Entreprise, dateStr, dto.Heure);
+                dto.Email, dto.Entreprise, dateStr, preferredTime);
 
             return Ok(new { success = true, message = "Réservation confirmée", id = demoRequest.Id });
         }
@@ -168,7 +174,15 @@ public class DemoController : ControllerBase
 
     // ─── Email templates ──────────────────────────────────────────────────────
 
-    private static string BuildConfirmationEmail(DemoBookingDto dto, string dateStr) => $"""
+    private static string BuildConfirmationEmail(DemoBookingDto dto, string dateStr, bool isQuickRequest)
+    {
+        var statusText = isQuickRequest ? "Votre demande de démonstration est enregistrée !" : "Votre session de démo est confirmée !";
+        var introduction = isQuickRequest
+            ? "Votre demande a bien été enregistrée. Notre équipe vous recontactera pour convenir du créneau le plus adapté."
+            : "Votre session de démonstration TuniFlow a bien été enregistrée. Retrouvez ci-dessous les détails de votre rendez-vous.";
+        var detailsTitle = isQuickRequest ? "Détails de votre demande" : "Détails de la session";
+        var timeLabel = isQuickRequest ? "Créneau" : "Heure";
+        return $"""
         <!DOCTYPE html>
         <html lang="fr">
         <head>
@@ -178,7 +192,7 @@ public class DemoController : ControllerBase
         </head>
         <body style="margin:0;padding:0;background-color:#F4F4F5;font-family:Arial,Helvetica,sans-serif">
           <!-- Preview text -->
-          <div style="display:none;max-height:0;overflow:hidden">Votre session du {dateStr} à {dto.Heure} est confirmée.&nbsp;&zwnj;&hairsp;&hairsp;&hairsp;&hairsp;</div>
+          <div style="display:none;max-height:0;overflow:hidden">{statusText}&nbsp;&zwnj;&hairsp;&hairsp;&hairsp;&hairsp;</div>
 
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F5;padding:32px 0">
             <tr><td align="center">
@@ -219,25 +233,25 @@ public class DemoController : ControllerBase
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
                       <tr>
                         <td style="background:#F0FDF4;border-left:4px solid #16A34A;border-radius:0 8px 8px 0;padding:12px 16px">
-                          <span style="font-size:13px;font-weight:700;color:#14532D;font-family:Arial,sans-serif">✓ &nbsp;Votre session de démo est confirmée !</span>
+                          <span style="font-size:13px;font-weight:700;color:#14532D;font-family:Arial,sans-serif">✓ &nbsp;{statusText}</span>
                         </td>
                       </tr>
                     </table>
 
                     <h1 style="font-size:22px;font-weight:700;color:#0A0A0A;margin:0 0 8px;font-family:Arial,sans-serif">Bonjour {dto.Prenom},</h1>
-                    <p style="font-size:14px;color:#52525B;line-height:1.7;margin:0 0 24px;font-family:Arial,sans-serif">Votre session de démonstration TuniFlow a bien été enregistrée. Retrouvez ci-dessous les détails de votre rendez-vous.</p>
+                    <p style="font-size:14px;color:#52525B;line-height:1.7;margin:0 0 24px;font-family:Arial,sans-serif">{introduction}</p>
 
                     <!-- Session details -->
                     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FAFAFA;border:1px solid #E4E4E7;border-radius:10px;margin:0 0 24px">
                       <tr><td style="padding:16px 20px">
-                        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#A1A1AA;margin:0 0 12px;font-family:Arial,sans-serif">Détails de la session</p>
+                        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#A1A1AA;margin:0 0 12px;font-family:Arial,sans-serif">{detailsTitle}</p>
                         <table width="100%" cellpadding="0" cellspacing="0" border="0">
                           <tr>
                             <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;width:140px;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Date</td>
                             <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;font-weight:600">{dateStr}</td>
                           </tr>
                           <tr>
-                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">Heure</td>
+                            <td style="padding:7px 0;font-size:12px;font-weight:700;color:#A1A1AA;text-transform:uppercase;letter-spacing:.04em;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;vertical-align:top">{timeLabel}</td>
                             <td style="padding:7px 0;font-size:14px;color:#0A0A0A;font-family:Arial,sans-serif;border-bottom:1px solid #F4F4F5;font-weight:600">{dto.Heure}</td>
                           </tr>
                           <tr>
@@ -291,6 +305,7 @@ public class DemoController : ControllerBase
         </body>
         </html>
         """;
+    }
 
     private static string BuildInternalEmail(DemoBookingDto dto, string dateStr) => $"""
         <!DOCTYPE html>

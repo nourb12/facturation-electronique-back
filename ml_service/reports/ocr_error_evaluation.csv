@@ -1,0 +1,3 @@
+model,precision,recall,f1,roc_auc,pr_auc,threshold
+logistic_regression,1.0,1.0,1.0,1.0,1.0,0.42
+lightgbm,1.0,1.0,1.0,1.0,1.0,0.42

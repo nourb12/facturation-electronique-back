@@ -12,6 +12,7 @@ namespace Einvoicing.Api.Controllers;
 [Authorize]
 public sealed class TransactionsController(
     ITransactionService transactionService,
+    ITransactionAnomalyService transactionAnomalyService,
     ICurrentUserService currentUser
 ) : ControllerBase
 {
@@ -94,6 +95,59 @@ public sealed class TransactionsController(
         var filtre = new FiltreTransactionsRequest(1, 1, statut, type, dateDebut, dateFin, categorieNom, recherche);
         var result = await transactionService.ResumeParCategorieAsync(eId, filtre, ct);
         return Ok(result);
+    }
+
+    [HttpGet("anomaly/report")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(TransactionAnomalyReportDto), 200)]
+    [ProducesResponseType(503)]
+    public async Task<IActionResult> AnomalyReport(CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var entrepriseId, out _);
+        if (guard is not null) return guard;
+
+        try
+        {
+            return Ok(await transactionAnomalyService.GetReportAsync(entrepriseId, ct));
+        }
+        catch (HttpRequestException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Le service IA n'est pas accessible. Vérifiez sa configuration puis réessayez.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Problem(title: "Analyse indisponible", detail: exception.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+        }
+    }
+
+    [HttpPost("anomaly/score")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(TransactionAnomalyScoreDto), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(503)]
+    public async Task<IActionResult> ScoreAnomaly([FromBody] TransactionAnomalyScoreRequest request, CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out _, out _);
+        if (guard is not null) return guard;
+
+        try
+        {
+            return Ok(await transactionAnomalyService.ScoreAsync(request, ct));
+        }
+        catch (ArgumentException exception)
+        {
+            return Problem(title: "Requête invalide", detail: exception.Message, statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (HttpRequestException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Démarrez le service Python sur le port 8001 puis réessayez.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
     }
 
     [HttpGet("{id:guid}")]

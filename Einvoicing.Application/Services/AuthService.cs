@@ -7,9 +7,13 @@
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Helpers;
 using Einvoicing.Application.Interfaces;
+using Einvoicing.Application.Options;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using Einvoicing.Domain.Exceptions;
+using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Text.Json;
 
 using RegisterRequest = Einvoicing.Application.DTOs.RegisterRequest;
 using LoginRequest = Einvoicing.Application.DTOs.LoginRequest;
@@ -25,9 +29,14 @@ public sealed class AuthService(
     IPasswordHasher passwordHasher,
     ITotpService totpService,
     IEmailService emailService,
-    IRateLimiter rateLimiter
+    IRateLimiter rateLimiter,
+    IOptions<GoogleAuthOptions> googleAuthOptions
 ) : IAuthService
 {
+    private static readonly JsonSerializerOptions GoogleJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = true
+    };
     
     
     
@@ -145,6 +154,70 @@ public sealed class AuthService(
 
         if (utilisateur.DeuxFAActif)
             return new DeuxFARequisResponse(utilisateur.Id);
+
+        return await GenererAuthResponse(utilisateur, ip, userAgent, ct);
+    }
+
+    public async Task<AuthResponse> ConnecterAvecGoogleAsync(
+        GoogleExchangeRequest req, string? ip, string? userAgent, CancellationToken ct = default)
+    {
+        var google = googleAuthOptions.Value;
+        if (string.IsNullOrWhiteSpace(google.ClientId) || string.IsNullOrWhiteSpace(google.ClientSecret))
+            throw new ValidationMetierException("Connexion Google non configurée.");
+
+        if (string.IsNullOrWhiteSpace(req.Code))
+            throw new ValidationMetierException("Code Google manquant.");
+
+        var roleHint = (req.RoleHint ?? string.Empty).Trim().ToLowerInvariant();
+        if (roleHint is not ("admin" or "financier" or "entreprise"))
+            throw new ValidationMetierException("Espace Google invalide.");
+
+        using var http = new HttpClient();
+
+        using var tokenResponse = await http.PostAsync(
+            "https://oauth2.googleapis.com/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = req.Code,
+                ["client_id"] = google.ClientId,
+                ["client_secret"] = google.ClientSecret,
+                ["grant_type"] = "authorization_code",
+                ["redirect_uri"] = "postmessage",
+            }),
+            ct);
+
+        var tokenPayload = await DeserializeGoogleResponseAsync<GoogleTokenResponse>(tokenResponse, ct);
+        if (!tokenResponse.IsSuccessStatusCode || tokenPayload is null || string.IsNullOrWhiteSpace(tokenPayload.AccessToken))
+            throw new ValidationMetierException("Authentification Google refusée.");
+
+        using var userInfoRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://openidconnect.googleapis.com/v1/userinfo");
+        userInfoRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenPayload.AccessToken);
+
+        using var userInfoResponse = await http.SendAsync(userInfoRequest, ct);
+        var userInfo = await DeserializeGoogleResponseAsync<GoogleUserInfoResponse>(userInfoResponse, ct);
+        if (!userInfoResponse.IsSuccessStatusCode || userInfo is null || string.IsNullOrWhiteSpace(userInfo.Email))
+            throw new ValidationMetierException("Compte Google non valide.");
+
+        if (!userInfo.EmailVerified)
+            throw new ValidationMetierException("Adresse Google non vérifiée.");
+
+        var utilisateur = await utilisateurRepo.ObtenirParEmailAsync(userInfo.Email.ToLower().Trim(), ct)
+            ?? throw new AccesRefuseException("Aucun compte TuniFlow n'est rattaché à cette adresse Google.");
+
+        if (!utilisateur.PeutSeConnecter())
+            throw new CompteInactifException();
+
+        if (!RoleCompatibleAvecEspace(roleHint, utilisateur.Role))
+            throw new AccesRefuseException("Ce compte Google n'a pas accès à cet espace.");
+
+        utilisateur.EnregistrerConnexion();
+        await utilisateurRepo.SauvegarderAsync(ct);
+
+        if (utilisateur.AlerteConnexion && ip is not null)
+            await emailService.EnvoyerAlerteConnexionAsync(
+                utilisateur.Email, utilisateur.Prenom, ip, userAgent ?? "Google OAuth", ct);
 
         return await GenererAuthResponse(utilisateur, ip, userAgent, ct);
     }
@@ -365,6 +438,43 @@ public sealed class AuthService(
     private static string GenererCodeOtp()
         => System.Security.Cryptography.RandomNumberGenerator
                .GetInt32(100000, 999999).ToString();
+
+    private static bool RoleCompatibleAvecEspace(string roleHint, RoleUtilisateur role) => roleHint switch
+    {
+        "admin" => role == RoleUtilisateur.SuperAdmin,
+        "financier" => role is RoleUtilisateur.ResponsableFinancier or RoleUtilisateur.Admin or RoleUtilisateur.SuperAdmin,
+        "entreprise" => role is RoleUtilisateur.ResponsableEntreprise or RoleUtilisateur.Admin or RoleUtilisateur.SuperAdmin,
+        _ => false
+    };
+
+    private static async Task<T?> DeserializeGoogleResponseAsync<T>(
+        HttpResponseMessage response,
+        CancellationToken ct)
+    {
+        var json = await response.Content.ReadAsStringAsync(ct);
+        if (string.IsNullOrWhiteSpace(json))
+            return default;
+
+        return JsonSerializer.Deserialize<T>(json, GoogleJsonOptions);
+    }
+
+    private sealed record GoogleTokenResponse(
+        string AccessToken,
+        string TokenType,
+        string Scope,
+        int ExpiresIn,
+        string? IdToken
+    );
+
+    private sealed record GoogleUserInfoResponse(
+        string Sub,
+        string Email,
+        bool EmailVerified,
+        string? Name,
+        string? GivenName,
+        string? FamilyName,
+        string? Picture
+    );
 }
 
 

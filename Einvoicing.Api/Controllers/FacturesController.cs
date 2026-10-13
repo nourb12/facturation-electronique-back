@@ -16,6 +16,8 @@ namespace Einvoicing.Api.Controllers;
 [Authorize]
 public sealed class FacturesController(
     IFactureService factureService,
+    ILatePaymentPredictionService latePaymentPredictionService,
+    IRelanceService relanceService,
     ICurrentUserService currentUser
 ) : ControllerBase
 {
@@ -89,6 +91,77 @@ public sealed class FacturesController(
 
         var result = await factureService.ObtenirParIdAsync(id, eId, ct);
         return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/prediction-retard")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(PredictionRetardDto), 200)]
+    [ProducesResponseType(503)]
+    public async Task<IActionResult> PredireRetard(Guid id, CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var eId, out _);
+        if (guard is not null) return guard;
+
+        try
+        {
+            var result = await latePaymentPredictionService.PredireAsync(id, eId, ct);
+            return Ok(result);
+        }
+        catch (HttpRequestException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Le service IA n'est pas accessible. Vérifiez sa configuration puis réessayez.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (TaskCanceledException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Le service Python n'a pas répondu à temps.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    [HttpGet("predictions-retard")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(IReadOnlyList<PredictionRetardFactureDto>), 200)]
+    [ProducesResponseType(503)]
+    public async Task<IActionResult> ListerPredictionsRetard(CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var eId, out _);
+        if (guard is not null) return guard;
+
+        try
+        {
+            return Ok(await latePaymentPredictionService.ListerFacturesOuvertesAsync(eId, ct));
+        }
+        catch (HttpRequestException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Le service IA n'est pas accessible. Vérifiez sa configuration puis réessayez.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (TaskCanceledException)
+        {
+            return Problem(
+                title: "Service ML indisponible",
+                detail: "Le service Python n'a pas répondu à temps.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+    }
+
+    [HttpPost("{id:guid}/relance-predictive")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(200)]
+    public async Task<IActionResult> EnvoyerRelancePredictive(Guid id, CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var eId, out var uId);
+        if (guard is not null) return guard;
+
+        await relanceService.EnvoyerRelancePredictiveAsync(id, eId, uId, ct);
+        return Ok(new { message = "Relance prédictive envoyée et ajoutée à l'historique." });
     }
 
     [HttpGet("{id:guid}/historique")]

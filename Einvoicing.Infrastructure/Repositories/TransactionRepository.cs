@@ -69,19 +69,26 @@ public sealed class TransactionRepository(ContextBaseDeDonnees db) : ITransactio
     {
         var query = ApplyFilters(db.Transactions.AsNoTracking(), entrepriseId, filtre);
 
-        var rows = await query
+        var groups = await query
             .GroupBy(t => new { Cat = t.CategorieNom ?? "Non catégorisé", t.Type })
-            .Select(g => new TransactionCategorieResumeDto(
-                g.Key.Cat,
-                g.Key.Cat,
+            .Select(g => new
+            {
+                Categorie = g.Key.Cat,
                 g.Key.Type,
-                g.Count(),
-                g.Sum(x => x.Montant)
-            ))
+                Nombre = g.Count(),
+                Montant = g.Sum(x => x.Montant)
+            })
             .OrderByDescending(x => x.Montant)
             .ToListAsync(ct);
 
-        return rows;
+        return groups
+            .Select(g => new TransactionCategorieResumeDto(
+                g.Categorie,
+                g.Categorie,
+                g.Type,
+                g.Nombre,
+                g.Montant))
+            .ToList();
     }
 
     public async Task AjouterAsync(Transaction transaction, CancellationToken ct = default)

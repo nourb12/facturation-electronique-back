@@ -14,7 +14,8 @@ public sealed class ScanService(
     IFileStorageService fileStorage,
     IScannedDocumentRepository scannedDocumentRepo,
     ITransactionRepository transactionRepo,
-    IFournisseurRepository fournisseurRepo) : IScanService
+    IFournisseurRepository fournisseurRepo,
+    IOcrErrorDetectionService ocrErrorDetectionService) : IScanService
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -99,7 +100,22 @@ public sealed class ScanService(
         await scannedDocumentRepo.AjouterAsync(document, ct);
         await scannedDocumentRepo.SauvegarderAsync(ct);
 
-        return ToUploadDto(document, fields, missingFields, ocr);
+        OcrErrorScoreDto? ocrErrorAnalysis = null;
+        try
+        {
+            ocrErrorAnalysis = await ocrErrorDetectionService.ScoreAsync(
+                new OcrErrorScoreRequest(
+                    normalizedType,
+                    fields.Select(field => new OcrErrorFieldRequest(
+                        field.Key, field.Label, field.Value, field.Confidence, field.Required)).ToList()),
+                ct);
+        }
+        catch (Exception)
+        {
+            // OCR extraction must remain available when the secondary ML review service is offline.
+        }
+
+        return ToUploadDto(document, fields, missingFields, ocr, ocrErrorAnalysis);
     }
 
     public async Task<ValidateScanResponseDto> ValidateAsync(
@@ -199,7 +215,8 @@ public sealed class ScanService(
         ScannedDocument document,
         List<ExtractedFieldDto> fields,
         List<string> missingFields,
-        AccountingOcrResult? ocr)
+        AccountingOcrResult? ocr,
+        OcrErrorScoreDto? ocrErrorAnalysis)
     {
         var imageUrl = "/" + document.FilePath.Replace("\\", "/").TrimStart('/');
         var schemaVersion = ocr?.SchemaVersionSnake ?? ocr?.SchemaVersion ?? "1.0";
@@ -217,7 +234,8 @@ public sealed class ScanService(
             document.RawText,
             ocr?.SourceMode ?? "ocr",
             ocr?.ImageQuality,
-            document.ErrorMessage);
+            document.ErrorMessage,
+            ocrErrorAnalysis);
     }
 
     private static string NormalizeDocumentType(string? documentType)

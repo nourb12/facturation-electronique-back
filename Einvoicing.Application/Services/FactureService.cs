@@ -34,6 +34,7 @@ public sealed class FactureService(
         if (!client.EstActif)
             throw new ValidationMetierException("Le client est inactif.");
 
+        Facture? factureOrigine = null;
         if (req.TypeFacture == Domain.Enums.TypeFacture.Avoir)
         {
             if (req.FactureOrigineId is null)
@@ -45,6 +46,8 @@ public sealed class FactureService(
                 throw new ValidationMetierException("L'avoir doit viser une facture du meme client et de la meme entreprise.");
             if (origine.TypeFacture == Domain.Enums.TypeFacture.Avoir)
                 throw new ValidationMetierException("Un avoir ne peut pas avoir un autre avoir comme origine.");
+
+            factureOrigine = origine;
         }
 
         var numero = await numeroService.GenererNumeroAsync(entrepriseId, ct);
@@ -66,6 +69,15 @@ public sealed class FactureService(
                 ligneReq.ProduitId, ligneReq.Description,
                 ligneReq.Unite, ligneReq.TauxRemise);
             facture.AjouterLigne(ligne);
+        }
+
+        if (factureOrigine is not null)
+        {
+            var avoirsExistants = await factureRepo.ObtenirAvoirsOrigineAsync(factureOrigine.Id, ct);
+            var totalAvoirs = avoirsExistants.Sum(a => a.TotalTtc);
+            if (totalAvoirs + facture.TotalTtc > factureOrigine.TotalTtc)
+                throw new ValidationMetierException(
+                    "Le montant cumule des avoirs ne peut pas depasser le total TTC de la facture d'origine.");
         }
 
         await factureRepo.AjouterAsync(facture, ct);

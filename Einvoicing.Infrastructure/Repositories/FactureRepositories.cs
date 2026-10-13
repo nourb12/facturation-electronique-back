@@ -26,6 +26,13 @@ public sealed class FactureRepository(ContextBaseDeDonnees db) : IFactureReposit
             .Include(f => f.Historique)
             .FirstOrDefaultAsync(f => f.Id == id, ct);
 
+    public async Task<List<Facture>> ObtenirAvoirsOrigineAsync(Guid factureOrigineId, CancellationToken ct = default)
+        => await db.Factures
+            .Where(f => f.FactureOrigineId == factureOrigineId
+                && f.TypeFacture == TypeFacture.Avoir
+                && f.Statut != StatutFacture.Annulee)
+            .ToListAsync(ct);
+
     public async Task<(List<Facture> Items, int Total)> ListerAsync(
         Guid entrepriseId, FiltreFacturesRequest filtre, CancellationToken ct = default)
     {

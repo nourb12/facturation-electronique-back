@@ -24,6 +24,12 @@ public sealed class UtilisateurRepository(ContextBaseDeDonnees db) : IUtilisateu
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);
 
+    public async Task<List<Utilisateur>> ListerTousAsync(CancellationToken ct = default)
+        => await db.Utilisateurs
+            .OrderBy(u => u.Nom)
+            .ThenBy(u => u.Prenom)
+            .ToListAsync(ct);
+
     public async Task<List<Utilisateur>> ListerParEntrepriseAsync(
         Guid entrepriseId, CancellationToken ct = default)
         => await db.Utilisateurs

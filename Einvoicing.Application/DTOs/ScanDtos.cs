@@ -25,7 +25,8 @@ public record ScanUploadResponseDto(
     string RawText,
     string SourceMode,
     Dictionary<string, object>? ImageQuality,
-    string? ErrorMessage
+    string? ErrorMessage,
+    OcrErrorScoreDto? OcrErrorAnalysis = null
 );
 
 public record ValidateScanFieldRequest(

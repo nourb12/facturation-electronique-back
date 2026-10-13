@@ -16,6 +16,7 @@ public interface IAuthService
 {
     Task<AuthResponse> InscrireAsync(RegisterRequest request, CancellationToken ct = default);
     Task<LoginResult> ConnecterAsync(LoginRequest request, string? ip, string? userAgent, CancellationToken ct = default);
+    Task<AuthResponse> ConnecterAvecGoogleAsync(GoogleExchangeRequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task<AuthResponse> Connecter2FAAsync(Login2FARequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task<AuthResponse> RafraichirTokenAsync(RefreshTokenRequest request, string? ip, string? userAgent, CancellationToken ct = default);
     Task DeconnecterAsync(string refreshToken, CancellationToken ct = default);
@@ -94,6 +95,21 @@ public interface ISmsService
     Task EnvoyerAsync(string telephone, string message, CancellationToken ct = default);
 }
 
+public interface IOtpDemandeAccesRepository
+{
+    Task<OtpDemandeAcces?> ObtenirAsync(Guid id, CancellationToken ct = default);
+    Task AjouterAsync(OtpDemandeAcces otp, CancellationToken ct = default);
+    void MettreAJour(OtpDemandeAcces otp);
+    Task SauvegarderAsync(CancellationToken ct = default);
+}
+
+public interface IOtpDemandeAccesService
+{
+    Task<OtpDemandeAccesEnvoyeDto> EnvoyerAsync(EnvoyerOtpDemandeAccesRequest request, CancellationToken ct = default);
+    Task<OtpDemandeAccesVerifieDto> VerifierAsync(VerifierOtpDemandeAccesRequest request, CancellationToken ct = default);
+    Task VerifierEtConsommerAsync(Guid id, string token, string email, string telephone, CancellationToken ct = default);
+}
+
 public interface IRateLimiter
 {
     bool EstBloque(string cle);
@@ -119,6 +135,7 @@ public interface IUtilisateurRepository
     Task AjouterAsync(Utilisateur utilisateur, CancellationToken ct = default);
     void MettreAJour(Utilisateur utilisateur);
     Task SauvegarderAsync(CancellationToken ct = default);
+    Task<List<Utilisateur>> ListerTousAsync(CancellationToken ct = default);
     Task<List<Utilisateur>> ListerParEntrepriseAsync(Guid entrepriseId, CancellationToken ct = default);
     Task<List<Utilisateur>> ListerParStatutAsync(StatutCompte statut, CancellationToken ct = default);
 }

@@ -5,6 +5,7 @@ using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using Einvoicing.Domain.Exceptions;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace Einvoicing.Tests.Demandes;
@@ -17,6 +18,8 @@ public class DemandeAccesServiceTests
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IFileStorageService> _fileStorage = new();
     private readonly Mock<IOcrClient> _ocrClient = new();
+    private readonly Mock<IOtpDemandeAccesService> _otpService = new();
+    private readonly Mock<ISmsService> _smsService = new();
     private readonly KycScoringService _kycScoring = new();
 
     private DemandeAccesService CreateService() => new(
@@ -26,7 +29,10 @@ public class DemandeAccesServiceTests
         _passwordHasher.Object,
         _fileStorage.Object,
         _kycScoring,
-        _ocrClient.Object);
+        _ocrClient.Object,
+        _otpService.Object,
+        _smsService.Object,
+        NullLogger<DemandeAccesService>.Instance);
 
     [Fact]
     public async Task SoumettreDemandeAsync_NormaliseMatriculeEtCreeEntreprise()
@@ -66,6 +72,8 @@ public class DemandeAccesServiceTests
                 It.IsAny<List<string>>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        _smsService.Setup(x => x.EnvoyerAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var service = CreateService();
 
@@ -74,10 +82,13 @@ public class DemandeAccesServiceTests
         savedEntreprise.Should().NotBeNull();
         savedEntreprise!.MatriculeFiscal.Should().Be("1234567ABM000");
         savedEntreprise.EstActive.Should().BeFalse();
+        savedEntreprise.DonneesInscription.Should().Contain("profileType").And.Contain("entreprise");
         savedUser.Should().NotBeNull();
         savedUser!.Statut.Should().Be(StatutCompte.EnAttente);
         savedUser.Role.Should().Be(RoleUtilisateur.ResponsableEntreprise);
         result.Reference.Should().StartWith("MZN-1234567-");
+        result.SmsEnvoye.Should().BeTrue();
+        _smsService.Verify(x => x.EnvoyerAsync(req.Telephone, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -115,6 +126,8 @@ public class DemandeAccesServiceTests
                 It.IsAny<List<string>>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        _smsService.Setup(x => x.EnvoyerAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var service = CreateService();
 
@@ -140,8 +153,38 @@ public class DemandeAccesServiceTests
         _entrepriseRepo.Verify(x => x.AjouterAsync(It.IsAny<Entreprise>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task SoumettreDemandeAsync_ConserveLeProfilIndependant()
+    {
+        var req = BuildRequest("1234567A/B/M/002");
+        req.ProfileType = "independant";
+        _utilisateurRepo.Setup(x => x.ObtenirParEmailAsync(req.Email.ToLower(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Utilisateur?)null);
+        _entrepriseRepo.Setup(x => x.ObtenirParMatriculeAsync("1234567ABM002", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Entreprise?)null);
+        _ocrClient.Setup(x => x.ExtractAsync(It.IsAny<IEnumerable<Microsoft.AspNetCore.Http.IFormFile?>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OcrExtractionResult?)null);
+        _entrepriseRepo.Setup(x => x.AjouterAsync(It.IsAny<Entreprise>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _entrepriseRepo.Setup(x => x.SauvegarderAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _utilisateurRepo.Setup(x => x.AjouterAsync(It.IsAny<Utilisateur>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _utilisateurRepo.Setup(x => x.SauvegarderAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _passwordHasher.Setup(x => x.Hacher(It.IsAny<string>())).Returns("HASH");
+        _emailService.Setup(x => x.EnvoyerConfirmationDemandeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _smsService.Setup(x => x.EnvoyerAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        Entreprise? savedEntreprise = null;
+        _entrepriseRepo.Setup(x => x.AjouterAsync(It.IsAny<Entreprise>(), It.IsAny<CancellationToken>()))
+            .Callback<Entreprise, CancellationToken>((entreprise, _) => savedEntreprise = entreprise)
+            .Returns(Task.CompletedTask);
+
+        await CreateService().SoumettreDemandeAsync(req);
+
+        savedEntreprise!.DonneesInscription.Should().Contain("independant");
+    }
+
     private static SoumettreDemandeAccesRequest BuildRequest(string matricule) => new()
     {
+        ProfileType = "entreprise",
         RaisonSociale = "ACME",
         MatriculeFiscal = matricule,
         Email = "contact@acme.tn",

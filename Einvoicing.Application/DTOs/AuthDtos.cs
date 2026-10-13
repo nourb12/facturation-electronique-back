@@ -50,6 +50,15 @@ public record Login2FARequest(
 
 
 
+public record GoogleExchangeRequest(
+    string Code,
+    string RoleHint
+);
+
+
+
+
+
 public record RefreshTokenRequest(
     string AccessToken,
     string RefreshToken

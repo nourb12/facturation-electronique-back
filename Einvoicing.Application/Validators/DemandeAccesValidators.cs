@@ -9,6 +9,12 @@ public sealed class SoumettreDemandeAccesValidator : AbstractValidator<Soumettre
 {
     public SoumettreDemandeAccesValidator()
     {
+        RuleFor(x => x.OtpVerificationId).NotEmpty().WithMessage("La verification OTP est obligatoire.");
+        RuleFor(x => x.OtpVerificationToken).NotEmpty().WithMessage("La verification OTP est obligatoire.");
+        RuleFor(x => x.ProfileType)
+            .Must(value => value is "independant" or "entreprise")
+            .WithMessage("Le type de profil est invalide.");
+
         RuleFor(x => x.RaisonSociale)
             .NotEmpty().WithMessage(ErrorCodes.CompanyNameRequired);
         RuleFor(x => x.MatriculeFiscal)
@@ -22,7 +28,7 @@ public sealed class SoumettreDemandeAccesValidator : AbstractValidator<Soumettre
 
         RuleFor(x => x.Telephone)
             .NotEmpty().WithMessage(ErrorCodes.PhoneRequired)
-            .MinimumLength(8).WithMessage(ErrorCodes.PhoneRequired);
+            .Matches(@"^\d{8}$").WithMessage(ErrorCodes.PhoneRequired);
 
         RuleFor(x => x.FormeJuridique)
             .NotEmpty().WithMessage(ErrorCodes.LegalFormRequired);
@@ -48,7 +54,7 @@ public sealed class SoumettreDemandeAccesValidator : AbstractValidator<Soumettre
 
         RuleFor(x => x.TelEntreprise)
             .NotEmpty().WithMessage(ErrorCodes.PhoneRequired)
-            .MinimumLength(8).WithMessage(ErrorCodes.PhoneRequired);
+            .Matches(@"^\d{8}$").WithMessage(ErrorCodes.PhoneRequired);
 
         RuleFor(x => x.RespPrenom)
             .NotEmpty().WithMessage(ErrorCodes.FirstNameRequired)
@@ -70,7 +76,7 @@ public sealed class SoumettreDemandeAccesValidator : AbstractValidator<Soumettre
 
         RuleFor(x => x.RespTel)
             .NotEmpty().WithMessage(ErrorCodes.PhoneRequired)
-            .MinimumLength(8).WithMessage(ErrorCodes.PhoneRequired);
+            .Matches(@"^\d{8}$").WithMessage(ErrorCodes.PhoneRequired);
 
         RuleFor(x => x.RegistreCommerce).NotNull().WithMessage(ErrorCodes.RegistreCommerceRequired);
         RuleFor(x => x.Patente).NotNull().WithMessage(ErrorCodes.PatenteRequired);

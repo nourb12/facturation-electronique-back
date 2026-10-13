@@ -9,7 +9,9 @@ namespace Einvoicing.Api.Controllers;
 [ApiController]
 [Route("api/admin/demandes-kyc")]
 [Authorize(Policy = "Admin")]
-public sealed class DemandesKycController(IDemandeAccesService demandeService) : ControllerBase
+public sealed class DemandesKycController(
+    IDemandeAccesService demandeService,
+    IFileStorageService fileStorage) : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOpts =
         new(JsonSerializerDefaults.Web);
@@ -27,6 +29,34 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
         var demandes = await ChargerToutesDemandes(ct);
         var demande = demandes.FirstOrDefault(d => d.EntrepriseId == id);
         return demande is null ? NotFound() : Ok(MapToDto(demande));
+    }
+
+    [HttpGet("{id:guid}/documents/{documentType}")]
+    public async Task<IActionResult> GetDocument(Guid id, string documentType, CancellationToken ct)
+    {
+        var demande = (await ChargerToutesDemandes(ct)).FirstOrDefault(d => d.EntrepriseId == id);
+        if (demande is null) return NotFound();
+
+        var docs = TryParse<DocumentsData>(demande.DocumentsUploades);
+        var path = documentType.ToLowerInvariant() switch
+        {
+            "registre-commerce" or "registrecommerce" => docs?.RegistreCommerce,
+            "patente" => docs?.Patente,
+            "cin-responsable" or "cinresponsable" => docs?.CinResponsable,
+            "rib" => docs?.Rib,
+            _ => null
+        };
+        if (string.IsNullOrWhiteSpace(path)) return NotFound();
+
+        var stream = await fileStorage.OpenReadAsync(path, ct);
+        var contentType = Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "image/jpeg"
+        };
+        return File(stream, contentType, enableRangeProcessing: true);
     }
 
     [HttpPost("{id:guid}/accepter")]
@@ -55,6 +85,48 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
 
         await demandeService.DemanderCorrectionsAsync(id, flagCodes, req.MessageAdmin, ct);
         return Ok(new { message = "Email de corrections envoye." });
+    }
+
+    [HttpPost("batch/decision")]
+    public async Task<IActionResult> BatchDecision([FromBody] BatchDecisionRequest req, CancellationToken ct)
+    {
+        var ids = req.Ids?.Distinct().ToArray() ?? [];
+        if (ids.Length == 0)
+            return BadRequest(new { message = "Sélectionnez au moins une demande." });
+
+        var decision = req.Decision?.Trim().ToLowerInvariant();
+        if (decision is not "accepter" and not "refuser")
+            return BadRequest(new { message = "Décision invalide." });
+        if (decision == "refuser" && string.IsNullOrWhiteSpace(req.Motif))
+            return BadRequest(new { message = "Le motif est obligatoire pour un refus." });
+
+        var processed = new List<Guid>();
+        var errors = new List<object>();
+        foreach (var id in ids)
+        {
+            try
+            {
+                if (decision == "accepter") await demandeService.ValiderDemandeAsync(id, ct);
+                else await demandeService.RejeterDemandeAsync(id, req.Motif!.Trim(), ct);
+                processed.Add(id);
+            }
+            catch (Exception exception)
+            {
+                errors.Add(new { id, message = exception.Message });
+            }
+        }
+
+        return Ok(new { processed, errors, message = $"{processed.Count} demande(s) traitée(s)." });
+    }
+
+    [HttpPost("{id:guid}/notes")]
+    public async Task<IActionResult> AddInternalNote(Guid id, [FromBody] InternalNoteRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Note))
+            return BadRequest(new { message = "La note interne est obligatoire." });
+
+        await demandeService.AjouterNoteInterneAsync(id, req.Note, ct);
+        return Ok(new { message = "Note interne enregistrée." });
     }
     // Mapping
 
@@ -88,6 +160,7 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
             id = d.EntrepriseId,
             raisonSociale = d.RaisonSociale,
             matriculeFiscal = d.MatriculeFiscal,
+            profileType = profil?.ProfileType ?? "entreprise",
             formeJuridique = profil?.FormeJuridique ?? string.Empty,
             nomEntreprise = profil?.NomEntreprise ?? d.RaisonSociale,
             adresse = profil?.Adresse ?? d.Adresse,
@@ -112,12 +185,13 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
             comparisons = scoring?.Comparisons ?? new List<ComparisonData>(),
             ocr = scoring?.Ocr,
             createdAt = d.DateDemande,
+            history = scoring?.History ?? new List<HistoryData>(),
             documents = new
             {
-                registreCommerce = docs?.RegistreCommerce,
-                patente = docs?.Patente,
-                cinResponsable = docs?.CinResponsable,
-                rib = docs?.Rib,
+                registreCommerce = docs?.RegistreCommerce is not null,
+                patente = docs?.Patente is not null,
+                cinResponsable = docs?.CinResponsable is not null,
+                rib = docs?.Rib is not null,
             }
         };
     }
@@ -146,6 +220,8 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
 
     public record RefusRequest(string Motif);
     public record DemandeCorrectionsRequest(List<string>? FlagCodes, string? MessageAdmin);
+    public record BatchDecisionRequest(List<Guid>? Ids, string? Decision, string? Motif);
+    public record InternalNoteRequest(string? Note);
 
     private sealed class InscriptionData
     {
@@ -162,6 +238,7 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
 
     private sealed class ProfilEntreprise
     {
+        public string? ProfileType { get; set; }
         public string? FormeJuridique { get; set; }
         public string? NomEntreprise { get; set; }
         public string? Adresse { get; set; }
@@ -198,6 +275,16 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
         public List<BreakdownData>? Breakdown { get; set; }
         public List<ComparisonData>? Comparisons { get; set; }
         public OcrData? Ocr { get; set; }
+        public List<HistoryData>? History { get; set; }
+    }
+
+    private sealed class HistoryData
+    {
+        public string? Type { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string? Actor { get; set; }
+        public string? Message { get; set; }
+        public List<string>? FlagCodes { get; set; }
     }
 
     private sealed class BreakdownData
@@ -231,6 +318,7 @@ public sealed class DemandesKycController(IDemandeAccesService demandeService) :
         public string? NomExtrait { get; set; }
         public string? PrenomExtrait { get; set; }
         public string? CinExtrait { get; set; }
+        public string? RibExtrait { get; set; }
         public string? FormeJuridiqueExtraite { get; set; }
         public string? AdresseExtraite { get; set; }
         public string? TexteBrut { get; set; }

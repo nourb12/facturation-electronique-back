@@ -17,4 +17,8 @@ public interface IDemandeAccesService
         IReadOnlyCollection<string> flagCodes,
         string? messageAdmin,
         CancellationToken ct = default);
+    Task AjouterNoteInterneAsync(
+        Guid entrepriseId,
+        string note,
+        CancellationToken ct = default);
 }

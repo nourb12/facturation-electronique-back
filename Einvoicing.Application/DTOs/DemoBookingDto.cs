@@ -11,6 +11,7 @@ public class DemoBookingDto
     public string Entreprise { get; set; } = "";
     public string? Telephone { get; set; }
     public string? Message { get; set; }
-    public DateTime Date { get; set; }
-    public string Heure { get; set; } = "";
+    public DateTime? Date { get; set; }
+    public string? Heure { get; set; }
+    public bool QuickRequest { get; set; }
 }

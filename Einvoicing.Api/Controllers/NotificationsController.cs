@@ -50,7 +50,7 @@ public class NotificationsController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Erreur envoi SMS {Tel}", req.Telephone);
-            return Ok(new { message = "SMS non envoye (mode developpement)." });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "SMS non envoye. Le fournisseur SMS doit etre configure." });
         }
     }
 
@@ -95,7 +95,7 @@ public class NotificationsController(
         catch (Exception ex)
         {
             logger.LogError(ex, "Erreur notification facture {NumFac}", req.NumeroFacture);
-            return Ok(new { message = "Notification non envoyee (mode developpement)." });
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Notification non envoyee." });
         }
     }
 }

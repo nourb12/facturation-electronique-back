@@ -1,6 +1,7 @@
 using Einvoicing.Application.Interfaces;
 using Einvoicing.Application.Options;
 using Einvoicing.Domain.Enums;
+using Einvoicing.Domain.Exceptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,10 +12,57 @@ public sealed class RelanceService(
     IFactureRepository factureRepo,
     IClientRepository clientRepo,
     IEmailService emailService,
+    ILatePaymentPredictionService latePaymentPredictionService,
     IOptions<RelanceOptions> options,
     ILogger<RelanceService> logger
 ) : IRelanceService
 {
+    public async Task EnvoyerRelancePredictiveAsync(
+        Guid factureId,
+        Guid entrepriseId,
+        Guid utilisateurId,
+        CancellationToken ct = default)
+    {
+        var facture = await factureRepo.ObtenirAvecDetailsAsync(factureId, ct)
+            ?? throw new ValidationMetierException("Facture introuvable.");
+
+        if (facture.EntrepriseId != entrepriseId || facture.TypeFacture != TypeFacture.Facture)
+            throw new ValidationMetierException("Cette facture ne peut pas recevoir de relance.");
+
+        if (facture.MontantRestant <= 0)
+            throw new ValidationMetierException("Cette facture est déjà réglée.");
+
+        var prediction = await latePaymentPredictionService.PredireAsync(factureId, entrepriseId, ct);
+        if (prediction.ProbabiliteRetard < 40)
+            throw new ValidationMetierException("Le risque ML est faible : aucune relance n'est recommandée.");
+
+        var client = await clientRepo.ObtenirParIdAsync(facture.ClientId, ct);
+        if (client is null || string.IsNullOrWhiteSpace(client.Email))
+            throw new ValidationMetierException("Le client ne possède pas d'adresse e-mail pour la relance.");
+
+        const string action = "Relance prédictive";
+        if (await factureRepo.RelanceDejaEnvoyeeAsync(facture.Id, action, ct))
+            throw new ValidationMetierException("Une relance prédictive a déjà été envoyée pour cette facture.");
+
+        var sujet = $"Rappel de règlement - Facture {facture.Numero}";
+        var html = $"""
+            <p>Bonjour {System.Net.WebUtility.HtmlEncode(client.Nom)},</p>
+            <p>Nous vous rappelons que la facture <strong>{System.Net.WebUtility.HtmlEncode(facture.Numero)}</strong>
+            présente un montant restant de <strong>{facture.MontantRestant:N3} {System.Net.WebUtility.HtmlEncode(facture.Devise)}</strong>.</p>
+            <p>Merci de bien vouloir procéder au règlement ou nous contacter pour toute question.</p>
+            <p>Cordialement,<br/>TuniFlow</p>
+            """;
+
+        await emailService.SendEmailAsync(client.Email, sujet, html, ct);
+        await factureRepo.EnregistrerRelanceAsync(
+            facture.Id,
+            utilisateurId,
+            action,
+            $"Relance prédictive envoyée à {client.Email} (risque {prediction.ProbabiliteRetard:N0}%).",
+            ct);
+        await factureRepo.SauvegarderAsync(ct);
+    }
+
     public async Task ExecuterRelancesAsync(CancellationToken ct = default)
     {
         var opt = options.Value ?? new RelanceOptions();

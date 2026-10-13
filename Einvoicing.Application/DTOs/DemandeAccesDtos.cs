@@ -4,6 +4,10 @@ namespace Einvoicing.Application.DTOs;
 
 public sealed class SoumettreDemandeAccesRequest
 {
+    public Guid OtpVerificationId { get; set; }
+    public string OtpVerificationToken { get; set; } = string.Empty;
+    /// <summary>Parcours choisi dans le formulaire: independant ou entreprise.</summary>
+    public string ProfileType { get; set; } = string.Empty;
     public string RaisonSociale { get; set; } = string.Empty;
     public string MatriculeFiscal { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -30,9 +34,15 @@ public sealed class SoumettreDemandeAccesRequest
     public IFormFile? Rib { get; set; }
 }
 
+public record EnvoyerOtpDemandeAccesRequest(string Email, string Telephone, string Prenom, string Canal);
+public record VerifierOtpDemandeAccesRequest(Guid VerificationId, string Canal, string Code);
+public record OtpDemandeAccesEnvoyeDto(Guid VerificationId, DateTime ExpireLe, bool SmsEnvoye);
+public record OtpDemandeAccesVerifieDto(bool EmailVerifie, bool SmsVerifie, string? VerificationToken);
+
 public record DemandeAccesConfirmationDto(
     string Reference,
-    string Message
+    string Message,
+    bool SmsEnvoye = true
 );
 
 public record DemandeAccesDto(

@@ -5,6 +5,8 @@
 
 
 using Einvoicing.Domain.Enums;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Einvoicing.Domain.Entities;
 
@@ -156,4 +158,42 @@ public sealed class SessionActive
             return "Tablette";
         return "Desktop";
     }
+}
+
+public sealed class OtpDemandeAcces
+{
+    public Guid Id { get; private set; }
+    public string Email { get; private set; } = string.Empty;
+    public string Telephone { get; private set; } = string.Empty;
+    public string Canal { get; private set; } = string.Empty;
+    public string EmailCodeHash { get; private set; } = string.Empty;
+    public string SmsCodeHash { get; private set; } = string.Empty;
+    public string? VerificationTokenHash { get; private set; }
+    public bool EmailVerifie { get; private set; }
+    public bool SmsVerifie { get; private set; }
+    public bool EstUtilise { get; private set; }
+    public int NbEchecs { get; private set; }
+    public DateTime CreeLe { get; private set; }
+    public DateTime ExpireLe { get; private set; }
+
+    private OtpDemandeAcces() { }
+
+    public static OtpDemandeAcces Creer(string email, string telephone, string canal, string codeHash)
+        => new()
+        {
+            Id = Guid.NewGuid(), Email = email.Trim().ToLowerInvariant(), Telephone = telephone.Trim(), Canal = canal,
+            EmailCodeHash = codeHash, SmsCodeHash = codeHash,
+            CreeLe = DateTime.UtcNow, ExpireLe = DateTime.UtcNow.AddMinutes(5)
+        };
+
+    public bool EstValide() => !EstUtilise && NbEchecs < 5 && DateTime.UtcNow < ExpireLe;
+    public bool PeutSoumettre(string email, string telephone) => EstValide() && (EmailVerifie || SmsVerifie)
+        && string.Equals(Email, email.Trim(), StringComparison.OrdinalIgnoreCase) && Telephone == telephone.Trim();
+    public void VerifierEmail() => EmailVerifie = true;
+    public void VerifierSms() => SmsVerifie = true;
+    public void DefinirVerificationToken(string tokenHash) => VerificationTokenHash = tokenHash;
+    public bool VerifierToken(string token) => !string.IsNullOrWhiteSpace(VerificationTokenHash)
+        && CryptographicOperations.FixedTimeEquals(Convert.FromHexString(VerificationTokenHash), SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    public void EnregistrerEchec() => NbEchecs++;
+    public void Utiliser() => EstUtilise = true;
 }

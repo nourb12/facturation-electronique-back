@@ -11,7 +11,8 @@ namespace Einvoicing.Application.Services;
 
 public sealed class DashboardService(
     IFactureRepository factureRepo,
-    IEntrepriseRepository entrepriseRepo
+    IEntrepriseRepository entrepriseRepo,
+    IUtilisateurRepository utilisateurRepo
 ) : IDashboardService
 {
     public async Task<DashboardDto> ObtenirDashboardEntrepriseAsync(
@@ -140,6 +141,7 @@ public sealed class DashboardService(
         CancellationToken ct = default)
     {
         var entreprises = await entrepriseRepo.ListerToutesAsync(ct);
+        var utilisateurs = await utilisateurRepo.ListerTousAsync(ct);
         var actives = entreprises.Count(e => e.EstActive);
 
         var topEntreprises = new List<EntrepriseActiviteDto>();
@@ -162,7 +164,7 @@ public sealed class DashboardService(
         return new DashboardAdminDto(
             entreprises.Count,
             actives,
-            0,
+            utilisateurs.Count,
             topEntreprises.Sum(t => t.NbFactures),
             volumeTotal,
             topEntreprises);

@@ -402,6 +402,8 @@ public static class DataSeeder
         if (entreprise is null)
             return;
 
+        await EnsureDemoAccountsAsync(db, entreprise, hasher);
+
         var now = DateTime.UtcNow;
         var utilisateurs = await db.Utilisateurs
             .Where(u => u.EntrepriseId == entreprise.Id)
@@ -520,6 +522,106 @@ public static class DataSeeder
         var score = CalculerScore(db, entreprise.Id);
         entreprise.DefinirScoring(score.score, JsonSerializer.Serialize(score.details));
         await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureDemoAccountsAsync(
+        ContextBaseDeDonnees db,
+        Entreprise entreprise,
+        IPasswordHasher hasher)
+    {
+        await EnsureDemoAccountAsync(
+            db,
+            hasher,
+            prenom: "Amina",
+            nom: "Trabelsi",
+            email: "super.admin@tuniflow.tn",
+            role: RoleUtilisateur.SuperAdmin,
+            entrepriseId: null,
+            telephone: "+21620123456",
+            poste: "Super administrateur",
+            departement: "Plateforme");
+
+        await EnsureDemoAccountAsync(
+            db,
+            hasher,
+            prenom: "Karim",
+            nom: "Ayari",
+            email: "admin@tuniflow.tn",
+            role: RoleUtilisateur.Admin,
+            entrepriseId: entreprise.Id,
+            telephone: "+21620990011",
+            poste: "Administrateur",
+            departement: "IT");
+
+        await EnsureDemoAccountAsync(
+            db,
+            hasher,
+            prenom: "Leila",
+            nom: "Ben Salem",
+            email: "responsable@tuniflow.tn",
+            role: RoleUtilisateur.ResponsableEntreprise,
+            entrepriseId: entreprise.Id,
+            telephone: "+21629888777",
+            poste: "Responsable",
+            departement: "Operations");
+
+        await EnsureDemoAccountAsync(
+            db,
+            hasher,
+            prenom: "Youssef",
+            nom: "Gharbi",
+            email: "finances@tuniflow.tn",
+            role: RoleUtilisateur.ResponsableFinancier,
+            entrepriseId: entreprise.Id,
+            telephone: "+21650222333",
+            poste: "DAF",
+            departement: "Finance");
+    }
+
+    private static async Task EnsureDemoAccountAsync(
+        ContextBaseDeDonnees db,
+        IPasswordHasher hasher,
+        string prenom,
+        string nom,
+        string email,
+        RoleUtilisateur role,
+        Guid? entrepriseId,
+        string? telephone,
+        string? poste,
+        string? departement)
+    {
+        var utilisateur = await db.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
+        var motDePasseHash = hasher.Hacher("Demo@2026!");
+
+        if (utilisateur is null)
+        {
+            utilisateur = Utilisateur.Creer(
+                prenom,
+                nom,
+                email,
+                motDePasseHash,
+                role,
+                entrepriseId);
+
+            utilisateur.MettreAJourProfil(prenom, nom, telephone, poste, departement);
+            utilisateur.ConfigurerSecurite(true);
+            db.Utilisateurs.Add(utilisateur);
+            return;
+        }
+
+        utilisateur.ChangerMotDePasse(motDePasseHash);
+        if (utilisateur.Statut != StatutCompte.Actif)
+            utilisateur.Reactiver();
+        if (entrepriseId.HasValue && utilisateur.EntrepriseId != entrepriseId)
+            utilisateur.RattacherEntreprise(entrepriseId.Value);
+
+        utilisateur.MettreAJourProfil(
+            string.IsNullOrWhiteSpace(utilisateur.Prenom) ? prenom : utilisateur.Prenom,
+            string.IsNullOrWhiteSpace(utilisateur.Nom) ? nom : utilisateur.Nom,
+            string.IsNullOrWhiteSpace(utilisateur.Telephone) ? telephone : utilisateur.Telephone,
+            string.IsNullOrWhiteSpace(utilisateur.Poste) ? poste : utilisateur.Poste,
+            string.IsNullOrWhiteSpace(utilisateur.Departement) ? departement : utilisateur.Departement);
+        utilisateur.ConfigurerSecurite(true);
     }
 
     private static async Task EnsureClientsAsync(ContextBaseDeDonnees db, Guid entrepriseId)

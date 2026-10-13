@@ -1,11 +1,13 @@
 ﻿using System.Threading;
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Interfaces;
+using Einvoicing.Application.Options;
 using Einvoicing.Application.Services;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using Einvoicing.Domain.Exceptions;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace Einvoicing.Tests.Auth;
@@ -31,7 +33,8 @@ public class AuthServiceTests
         _passwordHasher.Object,
         _totpService.Object,
         _emailService.Object,
-        _rateLimiter.Object);
+        _rateLimiter.Object,
+        Options.Create(new GoogleAuthOptions()));
 
     [Fact]
     public async Task ConnecterAsync_ValidCredentials_ReturnsAuthTokens()

@@ -31,7 +31,7 @@ public sealed class EcrituresController(ContextBaseDeDonnees db, ICurrentUserSer
     }
 
     [HttpPost]
-    public IActionResult Creer([FromBody] CreerEcritureRequest request)
+    public async Task<IActionResult> Creer([FromBody] CreerEcritureRequest request, CancellationToken ct)
     {
         if (request.Lignes.Count < 2)
             return BadRequest(new { message = "Une écriture doit contenir au moins deux lignes." });
@@ -41,19 +41,25 @@ public sealed class EcrituresController(ContextBaseDeDonnees db, ICurrentUserSer
         if (Math.Abs(debit - credit) >= 0.001m)
             return BadRequest(new { message = "Le total débit doit être égal au total crédit." });
 
-        var rows = request.Lignes.Select((line, index) => new EcritureDto(
-            Id: $"OD-MANUELLE-{Guid.NewGuid():N}-{index + 1}",
-            Date: DateOnly.FromDateTime(request.Date),
-            Journal: string.IsNullOrWhiteSpace(request.Journal) ? "OD" : request.Journal.Trim().ToUpperInvariant(),
-            Piece: request.Piece.Trim(),
-            Compte: line.Compte.Trim(),
-            Libelle: request.Libelle.Trim(),
-            Tiers: request.Tiers?.Trim(),
-            Debit: Math.Round(line.Debit, 3),
-            Credit: Math.Round(line.Credit, 3),
-            Statut: "Validée",
-            FactureId: null,
-            Source: "Manuelle")).ToList();
+        var entrepriseId = await ComptabiliteWorkflow.EntrepriseIdAsync(db, currentUser, ct);
+        if (entrepriseId is null) return NotFound(new { message = "Entreprise introuvable." });
+
+        var persisted = EcritureComptable.CreerPiece(
+            entrepriseId.Value,
+            currentUser.UtilisateurId ?? Guid.Empty,
+            request.Date,
+            request.Journal,
+            request.Piece,
+            request.Libelle,
+            request.Tiers,
+            request.Lignes.Select(line => (line.Compte, line.Debit, line.Credit)));
+        db.EcrituresComptables.AddRange(persisted);
+        await db.SaveChangesAsync(ct);
+
+        var rows = persisted.Select(row => new EcritureDto(
+            Id: row.Id.ToString(), Date: DateOnly.FromDateTime(row.Date), Journal: row.Journal, Piece: row.Piece,
+            Compte: row.Compte, Libelle: row.Libelle, Tiers: row.Tiers, Debit: row.Debit, Credit: row.Credit,
+            Statut: row.Statut, FactureId: null, Source: row.Source)).ToList();
 
         return Created("/api/ecritures", rows);
     }
@@ -159,9 +165,15 @@ public sealed class DeclarationsController(ContextBaseDeDonnees db, ICurrentUser
 
         lignes = lignes.Where(f => ComptabiliteWorkflow.InPeriod(f.DateEmission, mois, annee)).ToList();
 
+        var fournisseurs = await db.Fournisseurs.Where(f => f.EntrepriseId == entrepriseId).ToDictionaryAsync(f => f.Id, f => new { f.Nom, f.MatriculeFiscal }, ct);
+        var facturesFournisseur = await db.FacturesFournisseur
+            .Where(f => f.EntrepriseId == entrepriseId && f.MontantRetenue > 0)
+            .ToListAsync(ct);
+        facturesFournisseur = facturesFournisseur.Where(f => ComptabiliteWorkflow.InPeriod(f.DateFacture, mois, annee)).ToList();
+
         return Ok(new
         {
-            total = Math.Round(lignes.Sum(f => f.MontantRS), 3),
+            total = Math.Round(lignes.Sum(f => f.MontantRS) + facturesFournisseur.Sum(f => f.MontantRetenue), 3),
             dateLimite = "28/mois",
             lignes = lignes.Select(f => new
             {
@@ -171,7 +183,15 @@ public sealed class DeclarationsController(ContextBaseDeDonnees db, ICurrentUser
                 taux = f.TauxRS,
                 montantRs = f.MontantRS,
                 naturePaiement = f.CodeRS ?? "Services"
-            })
+            }).Concat(facturesFournisseur.Select(f => new
+            {
+                fournisseur = fournisseurs.GetValueOrDefault(f.FournisseurId)?.Nom ?? "Fournisseur",
+                facture = f.Numero,
+                montantBrut = f.TotalHt,
+                taux = f.TauxRetenue,
+                montantRs = f.MontantRetenue,
+                naturePaiement = "Facture fournisseur"
+            }))
         });
     }
 
@@ -281,20 +301,18 @@ public sealed class AuditController(ContextBaseDeDonnees db, ICurrentUserService
             .Where(h => string.IsNullOrWhiteSpace(action) || h.Action.Contains(action, StringComparison.OrdinalIgnoreCase))
             .Where(h => !dateDebut.HasValue || h.CreeLe >= dateDebut.Value)
             .Where(h => !dateFin.HasValue || h.CreeLe <= dateFin.Value)
-            .Select(h => new
-            {
-                h.Id,
-                Date = h.CreeLe,
-                UtilisateurId = h.EffectuePar,
-                Entite = "Facture",
-                h.FactureId,
-                h.Action,
-                AncienneValeur = h.AncienneValeur,
-                NouvelleValeur = h.NouvelleValeur,
-                Details = h.Details
-            });
+            .Select(h => new AuditTimelineItem(h.CreeLe, h.EffectuePar.ToString(), h.Action, "Facture", "Historique antérieur", true, h.Details));
 
-        return Ok(rows);
+        var evenements = await db.EvenementsAudit
+            .Where(e => e.EntrepriseId == entrepriseId)
+            .Where(e => string.IsNullOrWhiteSpace(entite) || e.Ressource.ToLower().Contains(entite!.ToLower()))
+            .Where(e => string.IsNullOrWhiteSpace(action) || e.Action.ToLower().Contains(action!.ToLower()))
+            .Where(e => !dateDebut.HasValue || e.CreeLe >= dateDebut.Value)
+            .Where(e => !dateFin.HasValue || e.CreeLe <= dateFin.Value)
+            .Select(e => new AuditTimelineItem(e.CreeLe, e.UtilisateurId.HasValue ? e.UtilisateurId.Value.ToString() : "Système", e.Action, e.Ressource, e.AdresseIp, e.CodeReponse < 400, e.Details, null))
+            .ToListAsync(ct);
+
+        return Ok(rows.Concat(evenements).OrderByDescending(x => x.Date).Take(200));
     }
 }
 
@@ -312,6 +330,7 @@ internal static class ComptabiliteWorkflow
         var paiements = await db.Paiements.Where(p => p.EntrepriseId == entrepriseId).OrderByDescending(p => p.DatePaiement).ToListAsync(ct);
         var transactions = await db.Transactions.Where(t => t.EntrepriseId == entrepriseId).OrderByDescending(t => t.Date).ToListAsync(ct);
         var clients = await db.Clients.Where(c => c.EntrepriseId == entrepriseId).ToDictionaryAsync(c => c.Id, c => c.Nom, ct);
+        var ecrituresManuelles = await db.EcrituresComptables.Where(e => e.EntrepriseId == entrepriseId).OrderByDescending(e => e.Date).ToListAsync(ct);
 
         var rows = new List<EcritureDto>();
         foreach (var facture in factures)
@@ -341,6 +360,12 @@ internal static class ComptabiliteWorkflow
             Add(rows, tx.Date, journal, tx.Id.ToString("N")[..10].ToUpperInvariant(), compte, tx.Libelle, tx.TiersNom ?? tx.CategorieNom, tx.Type == TypeTransaction.Sortie ? tx.Montant : 0, tx.Type == TypeTransaction.Entree ? tx.Montant : 0, tx.Statut.ToString(), tx.FactureId, tx.Source.ToString());
             if (tx.RecoverableVatAmount is > 0)
                 Add(rows, tx.Date, "AC", tx.Id.ToString("N")[..10].ToUpperInvariant(), "436600", "TVA déductible", tx.TiersNom, tx.RecoverableVatAmount.Value, 0, tx.Statut.ToString(), tx.FactureId, tx.Source.ToString());
+        }
+
+        foreach (var ecriture in ecrituresManuelles)
+        {
+            rows.Add(new EcritureDto(ecriture.Id.ToString(), DateOnly.FromDateTime(ecriture.Date), ecriture.Journal, ecriture.Piece,
+                ecriture.Compte, ecriture.Libelle, ecriture.Tiers, ecriture.Debit, ecriture.Credit, ecriture.Statut, null, ecriture.Source));
         }
 
         return rows.OrderByDescending(r => r.Date).ThenBy(r => r.Piece).ToList();

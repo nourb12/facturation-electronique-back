@@ -9,6 +9,7 @@ using Einvoicing.Application.Interfaces;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using Einvoicing.Domain.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Einvoicing.Application.Services;
 
@@ -19,7 +20,10 @@ public sealed class DemandeAccesService(
     IPasswordHasher passwordHasher,
     IFileStorageService fileStorage,
     KycScoringService kycScoring,
-    IOcrClient ocrClient
+    IOcrClient ocrClient,
+    IOtpDemandeAccesService otpService,
+    ISmsService smsService,
+    ILogger<DemandeAccesService> logger
 ) : IDemandeAccesService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -35,6 +39,13 @@ public sealed class DemandeAccesService(
         var contactTelephone = string.IsNullOrWhiteSpace(req.Telephone)
             ? req.RespTel?.Trim() ?? string.Empty
             : req.Telephone.Trim();
+
+        await otpService.VerifierEtConsommerAsync(
+            req.OtpVerificationId,
+            req.OtpVerificationToken,
+            email,
+            contactTelephone,
+            ct);
 
         var existant = await utilisateurRepo.ObtenirParEmailAsync(email, ct);
         if (existant is not null)
@@ -63,21 +74,18 @@ public sealed class DemandeAccesService(
         );
         entreprise.Desactiver();
         // Logo retire du flow principal (gere dans les parametres apres validation)
+        EnsureDistinctDocuments(req);
         var cheminRc = req.RegistreCommerce is null ? null : await fileStorage.SaveAsync(req.RegistreCommerce, "kyc", ct);
         var cheminPat = req.Patente is null ? null : await fileStorage.SaveAsync(req.Patente, "kyc", ct);
         var cheminCin = req.CinResponsable is null ? null : await fileStorage.SaveAsync(req.CinResponsable, "kyc", ct);
         var cheminRib = req.Rib is null ? null : await fileStorage.SaveAsync(req.Rib, "kyc", ct);
-        // OCR local (degradation gracieuse si non configure)
+        // OCR par piece : l'analyse d'un lot ne permet pas de prouver que chaque zone contient le bon document.
         OcrExtractionResult? ocrResult = null;
+        Dictionary<string, OcrExtractionResult?> ocrByDocument = new(StringComparer.OrdinalIgnoreCase);
         try
         {
-            ocrResult = await ocrClient.ExtractAsync(new[]
-            {
-                req.RegistreCommerce,
-                req.CinResponsable,
-                req.Patente,
-                req.Rib
-            }, ct);
+            ocrByDocument = await ExtractKycDocumentsAsync(req, ct);
+            ocrResult = MergeKycOcrResults(ocrByDocument);
         }
         catch (Exception ex)
         {
@@ -113,7 +121,10 @@ public sealed class DemandeAccesService(
                 c.Matched,
                 c.Critical
             }),
-            ocr = ocrResult
+            ocr = ocrResult,
+            ocrByDocument = ocrByDocument.ToDictionary(
+                x => x.Key,
+                x => new { x.Value?.OcrSuccess, x.Value?.ConfidenceScore, x.Value?.TypeDocument, x.Value?.ErreurMessage })
         };
         entreprise.DefinirScoring(scoring.Score, JsonSerializer.Serialize(scoringPayload, JsonOptions));
 
@@ -122,6 +133,7 @@ public sealed class DemandeAccesService(
             contact = new { email, telephone = contactTelephone },
             profilEntreprise = new
             {
+                profileType = req.ProfileType,
                 req.FormeJuridique,
                 req.NomEntreprise,
                 req.Adresse,
@@ -194,7 +206,12 @@ public sealed class DemandeAccesService(
             documentsRecus,
             ct);
 
-        return new DemandeAccesConfirmationDto(reference, "Demande recue. Vous serez contacte sous 48h ouvrables.");
+        var smsEnvoye = await EnvoyerSmsAsync(
+            contactTelephone,
+            $"[TuniFlow] Demande {reference} recue. Votre dossier est en cours d'examen.",
+            ct);
+
+        return new DemandeAccesConfirmationDto(reference, "Demande recue. Vous serez contacte sous 48h ouvrables.", smsEnvoye);
     }
 
     public async Task<StatutCompteDto> VerifierStatutAsync(
@@ -271,12 +288,18 @@ public sealed class DemandeAccesService(
         entreprise.Reactiver();
         entrepriseRepo.MettreAJour(entreprise);
 
+        RecordKycEvent(entreprise, "Acceptee", null, null);
+
         await utilisateurRepo.SauvegarderAsync(ct);
         await entrepriseRepo.SauvegarderAsync(ct);
 
         await emailService.EnvoyerAccesValideAsync(
             utilisateur.Email, utilisateur.Prenom,
             entreprise.Nom, utilisateur.Email, tempPassword, ct);
+        await EnvoyerSmsAsync(
+            utilisateur.Telephone,
+            $"[TuniFlow] Votre acces pour {entreprise.Nom} est valide. Connectez-vous a votre espace.",
+            ct);
     }
 
     public async Task RejeterDemandeAsync(Guid entrepriseId, string motif, CancellationToken ct = default)
@@ -294,11 +317,17 @@ public sealed class DemandeAccesService(
         entreprise.Desactiver();
         entrepriseRepo.MettreAJour(entreprise);
 
+        RecordKycEvent(entreprise, "Refusee", motif, null);
+
         await utilisateurRepo.SauvegarderAsync(ct);
         await entrepriseRepo.SauvegarderAsync(ct);
 
         await emailService.EnvoyerDemandeRejeteeAsync(
             utilisateur.Email, utilisateur.Prenom, entreprise.Nom, motif, ct);
+        await EnvoyerSmsAsync(
+            utilisateur.Telephone,
+            $"[TuniFlow] Votre demande pour {entreprise.Nom} n'a pas ete acceptee. Consultez votre email.",
+            ct);
     }
 
     public async Task DemanderCorrectionsAsync(
@@ -321,6 +350,9 @@ public sealed class DemandeAccesService(
             throw new ValidationMetierException("Seules les demandes en attente peuvent recevoir une demande de correction.");
 
         var corrections = ResolveCorrections(entreprise.DonneesScoring, flagCodes);
+        RecordKycEvent(entreprise, "CorrectionsDemandees", messageAdmin, flagCodes);
+        entrepriseRepo.MettreAJour(entreprise);
+        await entrepriseRepo.SauvegarderAsync(ct);
 
         await emailService.EnvoyerDemandeCorrectionsAsync(
             utilisateur.Email,
@@ -329,6 +361,161 @@ public sealed class DemandeAccesService(
             corrections,
             messageAdmin,
             ct);
+        await EnvoyerSmsAsync(
+            utilisateur.Telephone,
+            $"[TuniFlow] Des corrections sont requises pour votre demande {entreprise.Nom}. Consultez votre email.",
+            ct);
+    }
+
+    public async Task AjouterNoteInterneAsync(Guid entrepriseId, string note, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(note))
+            throw new ValidationMetierException("La note interne ne peut pas être vide.");
+
+        var entreprise = await entrepriseRepo.ObtenirParIdAsync(entrepriseId, ct)
+            ?? throw new NotFoundException("Entreprise introuvable.");
+
+        RecordKycEvent(entreprise, "NoteInterne", note, null);
+        entrepriseRepo.MettreAJour(entreprise);
+        await entrepriseRepo.SauvegarderAsync(ct);
+    }
+
+    private async Task<bool> EnvoyerSmsAsync(string? telephone, string message, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(telephone)) return false;
+        try
+        {
+            await smsService.EnvoyerAsync(telephone, message, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "SMS non envoye pour une demande d'acces vers {Telephone}", telephone);
+            return false;
+        }
+    }
+
+    private async Task<Dictionary<string, OcrExtractionResult?>> ExtractKycDocumentsAsync(
+        SoumettreDemandeAccesRequest request,
+        CancellationToken ct)
+    {
+        var documents = new[]
+        {
+            (Key: "registreCommerce", ExpectedType: "registre", File: request.RegistreCommerce),
+            (Key: "patente", ExpectedType: "patente", File: request.Patente),
+            (Key: "cinResponsable", ExpectedType: "cin", File: request.CinResponsable),
+            (Key: "rib", ExpectedType: "rib", File: request.Rib)
+        };
+        var results = new Dictionary<string, OcrExtractionResult?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var document in documents)
+        {
+            var result = await ocrClient.ExtractAsync([document.File], ct);
+            if (result?.OcrSuccess == true
+                && (string.IsNullOrWhiteSpace(result.TypeDocument)
+                    || !result.TypeDocument.Contains(document.ExpectedType, StringComparison.OrdinalIgnoreCase)))
+            {
+                result.OcrSuccess = false;
+                result.ErreurMessage = $"Le document analyse dans la zone {document.Key} ne correspond pas au type attendu.";
+            }
+            results[document.Key] = result;
+        }
+        return results;
+    }
+
+    private static OcrExtractionResult MergeKycOcrResults(
+        IReadOnlyDictionary<string, OcrExtractionResult?> results)
+    {
+        results.TryGetValue("registreCommerce", out var registre);
+        results.TryGetValue("patente", out var patente);
+        results.TryGetValue("cinResponsable", out var cin);
+        results.TryGetValue("rib", out var rib);
+        var all = results.Values.Where(value => value is not null).Cast<OcrExtractionResult>().ToArray();
+        var errors = all.Where(value => !value.OcrSuccess || value.ConfidenceScore < .55d)
+            .Select(value => value.ErreurMessage)
+            .Where(message => !string.IsNullOrWhiteSpace(message));
+
+        return new OcrExtractionResult
+        {
+            OcrSuccess = all.Length == 4 && all.All(value => value.OcrSuccess && value.ConfidenceScore >= .55d),
+            ConfidenceScore = all.Length == 0 ? 0 : all.Average(value => value.ConfidenceScore),
+            MatriculeFiscalExtrait = registre?.MatriculeFiscalExtrait ?? patente?.MatriculeFiscalExtrait,
+            RaisonSocialeExtraite = registre?.RaisonSocialeExtraite,
+            FormeJuridiqueExtraite = registre?.FormeJuridiqueExtraite,
+            NomGerantExtrait = registre?.NomGerantExtrait ?? cin?.NomGerantExtrait,
+            NomExtrait = cin?.NomExtrait,
+            PrenomExtrait = cin?.PrenomExtrait,
+            CinExtrait = cin?.CinExtrait,
+            RibExtrait = rib?.RibExtrait,
+            AdresseExtraite = registre?.AdresseExtraite ?? patente?.AdresseExtraite,
+            ErreurMessage = string.Join(" ", errors.DefaultIfEmpty("Analyse OCR incomplete : revue manuelle obligatoire.")),
+            TexteBrut = string.Join(Environment.NewLine, all.Select(value => value.TexteBrut))
+        };
+    }
+
+    private static void RecordKycEvent(
+        Entreprise entreprise,
+        string type,
+        string? message,
+        IReadOnlyCollection<string>? flagCodes)
+    {
+        var history = new List<object>();
+        Dictionary<string, JsonElement> existing = new(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(entreprise.DonneesScoring))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(entreprise.DonneesScoring);
+                foreach (var property in doc.RootElement.EnumerateObject())
+                {
+                    if (property.NameEquals("history"))
+                    {
+                        if (property.Value.ValueKind == JsonValueKind.Array)
+                            history.AddRange(property.Value.EnumerateArray().Select(x => (object)x.Clone()));
+                        continue;
+                    }
+                    existing[property.Name] = property.Value.Clone();
+                }
+            }
+            catch (JsonException)
+            {
+                // Keep a new auditable payload if legacy scoring data is malformed.
+            }
+        }
+
+        history.Add(new
+        {
+            type,
+            createdAt = DateTime.UtcNow,
+            actor = "Administrateur TuniFlow",
+            message = string.IsNullOrWhiteSpace(message) ? null : message.Trim(),
+            flagCodes = flagCodes?.Where(code => !string.IsNullOrWhiteSpace(code)).Distinct().ToArray() ?? []
+        });
+        existing["history"] = JsonSerializer.SerializeToElement(history, JsonOptions);
+        entreprise.DefinirScoring(entreprise.ScoreKyc, JsonSerializer.Serialize(existing, JsonOptions));
+    }
+
+    private static void EnsureDistinctDocuments(SoumettreDemandeAccesRequest request)
+    {
+        var files = new[]
+        {
+            ("Registre de commerce", request.RegistreCommerce),
+            ("Patente", request.Patente),
+            ("CIN du responsable", request.CinResponsable),
+            ("RIB bancaire", request.Rib)
+        };
+        var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (label, file) in files)
+        {
+            if (file is null) continue;
+            using var stream = file.OpenReadStream();
+            var hash = Convert.ToHexString(SHA256.HashData(stream));
+            if (hashes.TryGetValue(hash, out var existing))
+                throw new ValidationMetierException($"Le document '{label}' est identique a '{existing}'. Chaque emplacement exige sa propre piece.");
+            hashes.Add(hash, label);
+        }
     }
 
     private static string GenererMotDePasseTemp(int length = 10)

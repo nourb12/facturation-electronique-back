@@ -47,6 +47,16 @@ public sealed class AuthController(
         return Ok(result);
     }
 
+    [HttpPost("google/exchange")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(AuthResponse), 200)]
+    public async Task<IActionResult> GoogleExchange(
+        [FromBody] GoogleExchangeRequest req, CancellationToken ct)
+    {
+        var result = await authService.ConnecterAvecGoogleAsync(req, Ip, Ua, ct);
+        return Ok(result);
+    }
+
     
     [HttpPost("2fa/login")]
     [AllowAnonymous]

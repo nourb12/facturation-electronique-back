@@ -14,6 +14,7 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     public DbSet<Utilisateur> Utilisateurs => Set<Utilisateur>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
+    public DbSet<OtpDemandeAcces> OtpDemandesAcces => Set<OtpDemandeAcces>();
     public DbSet<SessionActive> Sessions => Set<SessionActive>();
 
     
@@ -28,12 +29,15 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
 
     
     public DbSet<Facture> Factures => Set<Facture>();
+    public DbSet<FactureFournisseur> FacturesFournisseur => Set<FactureFournisseur>();
+    public DbSet<DocumentCommercial> DocumentsCommerciaux => Set<DocumentCommercial>();
     public DbSet<LigneFacture> LignesFacture => Set<LigneFacture>();
     public DbSet<HistoriqueFacture> HistoriqueFactures => Set<HistoriqueFacture>();
     public DbSet<CompteurFacture> CompteurFactures => Set<CompteurFacture>();
 
     
     public DbSet<Paiement> Paiements => Set<Paiement>();
+    public DbSet<PaiementFournisseur> PaiementsFournisseur => Set<PaiementFournisseur>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<ScannedDocument> ScannedDocuments => Set<ScannedDocument>();
     public DbSet<SignatureRequest> Signatures => Set<SignatureRequest>();
@@ -41,11 +45,142 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
     public DbSet<CalendrierEvent> CalendrierEvents => Set<CalendrierEvent>();
     public DbSet<CalendrierTask> CalendrierTasks => Set<CalendrierTask>();
+    public DbSet<KnowledgeDocument> KnowledgeDocuments => Set<KnowledgeDocument>();
+    public DbSet<KnowledgeChunk> KnowledgeChunks => Set<KnowledgeChunk>();
+    public DbSet<CompteComptable> ComptesComptables => Set<CompteComptable>();
+    public DbSet<EcritureComptable> EcrituresComptables => Set<EcritureComptable>();
+    public DbSet<ActifComptable> ActifsComptables => Set<ActifComptable>();
+    public DbSet<ExerciceComptable> ExercicesComptables => Set<ExerciceComptable>();
+    public DbSet<EmployePaie> EmployesPaie => Set<EmployePaie>();
+    public DbSet<BulletinPaie> BulletinsPaie => Set<BulletinPaie>();
+    public DbSet<EvenementAudit> EvenementsAudit => Set<EvenementAudit>();
+    public DbSet<AbonnementSaas> AbonnementsSaas => Set<AbonnementSaas>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.ApplyConfigurationsFromAssembly(typeof(ContextBaseDeDonnees).Assembly);
         base.OnModelCreating(mb);
+    }
+}
+
+internal sealed class EvenementAuditConfiguration : IEntityTypeConfiguration<EvenementAudit>
+{
+    public void Configure(EntityTypeBuilder<EvenementAudit> b)
+    {
+        b.ToTable("EvenementsAudit"); b.HasKey(x => x.Id);
+        b.Property(x => x.Action).HasMaxLength(12).IsRequired(); b.Property(x => x.Ressource).HasMaxLength(100).IsRequired();
+        b.Property(x => x.RessourceId).HasMaxLength(100); b.Property(x => x.Details).HasMaxLength(1000);
+        b.Property(x => x.AdresseIp).HasMaxLength(64).IsRequired(); b.Property(x => x.AgentUtilisateur).HasMaxLength(500);
+        b.HasIndex(x => new { x.EntrepriseId, x.CreeLe }); b.HasIndex(x => x.UtilisateurId);
+    }
+}
+
+internal sealed class AbonnementSaasConfiguration : IEntityTypeConfiguration<AbonnementSaas>
+{
+    public void Configure(EntityTypeBuilder<AbonnementSaas> b)
+    {
+        b.ToTable("AbonnementsSaas"); b.HasKey(x => x.Id);
+        b.Property(x => x.Plan).HasMaxLength(80).IsRequired(); b.Property(x => x.Statut).HasMaxLength(20).IsRequired();
+        b.Property(x => x.PrixMensuel).HasColumnType("numeric(15,3)");
+        b.HasIndex(x => x.EntrepriseId).IsUnique(); b.HasIndex(x => new { x.Statut, x.ProchainRenouvellement });
+    }
+}
+
+internal sealed class KnowledgeDocumentConfiguration : IEntityTypeConfiguration<KnowledgeDocument>
+{
+    public void Configure(EntityTypeBuilder<KnowledgeDocument> b)
+    {
+        b.ToTable("KnowledgeDocuments");
+        b.HasKey(d => d.Id);
+        b.Property(d => d.Title).HasMaxLength(300).IsRequired();
+        b.Property(d => d.Category).HasMaxLength(100).IsRequired();
+        b.Property(d => d.Source).HasMaxLength(500).IsRequired();
+        b.Property(d => d.Status).HasMaxLength(30).IsRequired();
+        b.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();
+        b.Property(d => d.StoragePath).HasMaxLength(500).IsRequired();
+        b.Property(d => d.MimeType).HasMaxLength(150).IsRequired();
+        b.Property(d => d.ExtractedText).HasColumnType("text");
+        b.Property(d => d.ExtractionError).HasColumnType("text");
+        b.HasIndex(d => new { d.EntrepriseId, d.Status });
+        b.HasMany(d => d.Chunks).WithOne(c => c.Document).HasForeignKey(c => c.DocumentId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class KnowledgeChunkConfiguration : IEntityTypeConfiguration<KnowledgeChunk>
+{
+    public void Configure(EntityTypeBuilder<KnowledgeChunk> b)
+    {
+        b.ToTable("KnowledgeChunks");
+        b.HasKey(c => c.Id);
+        b.Property(c => c.Heading).HasMaxLength(300).IsRequired();
+        b.Property(c => c.Content).HasColumnType("text").IsRequired();
+        b.HasIndex(c => new { c.DocumentId, c.Position }).IsUnique();
+    }
+}
+
+internal sealed class CompteComptableConfiguration : IEntityTypeConfiguration<CompteComptable>
+{
+    public void Configure(EntityTypeBuilder<CompteComptable> b)
+    {
+        b.ToTable("ComptesComptables"); b.HasKey(x => x.Id);
+        b.Property(x => x.Numero).HasMaxLength(6).IsRequired(); b.Property(x => x.Intitule).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Classe).HasMaxLength(30).IsRequired(); b.Property(x => x.Nature).HasMaxLength(80).IsRequired(); b.Property(x => x.Usage).HasMaxLength(300).IsRequired();
+        b.HasIndex(x => new { x.EntrepriseId, x.Numero }).IsUnique();
+    }
+}
+
+internal sealed class EcritureComptableConfiguration : IEntityTypeConfiguration<EcritureComptable>
+{
+    public void Configure(EntityTypeBuilder<EcritureComptable> b)
+    {
+        b.ToTable("EcrituresComptables"); b.HasKey(x => x.Id);
+        b.Property(x => x.Journal).HasMaxLength(10).IsRequired(); b.Property(x => x.Piece).HasMaxLength(100).IsRequired(); b.Property(x => x.Compte).HasMaxLength(6).IsRequired();
+        b.Property(x => x.Libelle).HasMaxLength(300).IsRequired(); b.Property(x => x.Tiers).HasMaxLength(200); b.Property(x => x.Statut).HasMaxLength(30).IsRequired(); b.Property(x => x.Source).HasMaxLength(40).IsRequired();
+        b.Property(x => x.Debit).HasColumnType("numeric(15,3)"); b.Property(x => x.Credit).HasColumnType("numeric(15,3)");
+        b.HasIndex(x => new { x.EntrepriseId, x.Date }); b.HasIndex(x => new { x.EntrepriseId, x.GroupeId });
+    }
+}
+
+internal sealed class ActifComptableConfiguration : IEntityTypeConfiguration<ActifComptable>
+{
+    public void Configure(EntityTypeBuilder<ActifComptable> b)
+    {
+        b.ToTable("ActifsComptables"); b.HasKey(x => x.Id);
+        b.Property(x => x.Libelle).HasMaxLength(200).IsRequired(); b.Property(x => x.Famille).HasMaxLength(100).IsRequired(); b.Property(x => x.Compte).HasMaxLength(6).IsRequired();
+        b.Property(x => x.TauxAmortissement).HasColumnType("numeric(5,3)"); b.Property(x => x.ValeurAcquisition).HasColumnType("numeric(15,3)"); b.Property(x => x.Statut).HasMaxLength(50).IsRequired();
+        b.HasIndex(x => x.EntrepriseId);
+    }
+}
+
+internal sealed class ExerciceComptableConfiguration : IEntityTypeConfiguration<ExerciceComptable>
+{
+    public void Configure(EntityTypeBuilder<ExerciceComptable> b)
+    {
+        b.ToTable("ExercicesComptables"); b.HasKey(x => x.Id); b.Property(x => x.Statut).HasMaxLength(30).IsRequired();
+        b.HasIndex(x => new { x.EntrepriseId, x.Annee }).IsUnique();
+    }
+}
+
+internal sealed class EmployePaieConfiguration : IEntityTypeConfiguration<EmployePaie>
+{
+    public void Configure(EntityTypeBuilder<EmployePaie> b)
+    {
+        b.ToTable("EmployesPaie"); b.HasKey(x => x.Id);
+        b.Property(x => x.Matricule).HasMaxLength(40).IsRequired(); b.Property(x => x.Nom).HasMaxLength(200).IsRequired(); b.Property(x => x.Poste).HasMaxLength(120).IsRequired(); b.Property(x => x.Departement).HasMaxLength(120).IsRequired();
+        b.Property(x => x.Cin).HasMaxLength(30); b.Property(x => x.NumeroCnss).HasMaxLength(50); b.Property(x => x.Rib).HasMaxLength(60);
+        b.Property(x => x.SalaireBase).HasColumnType("numeric(15,3)"); b.Property(x => x.PrimeMensuelle).HasColumnType("numeric(15,3)"); b.Property(x => x.AvantageMensuel).HasColumnType("numeric(15,3)");
+        b.HasIndex(x => new { x.EntrepriseId, x.Matricule }).IsUnique();
+    }
+}
+
+internal sealed class BulletinPaieConfiguration : IEntityTypeConfiguration<BulletinPaie>
+{
+    public void Configure(EntityTypeBuilder<BulletinPaie> b)
+    {
+        b.ToTable("BulletinsPaie"); b.HasKey(x => x.Id);
+        b.Property(x => x.Periode).HasMaxLength(7).IsRequired(); b.Property(x => x.Statut).HasMaxLength(30).IsRequired(); b.Property(x => x.ReferencePaiement).HasMaxLength(100);
+        b.Property(x => x.Brut).HasColumnType("numeric(15,3)"); b.Property(x => x.CnssSalarie).HasColumnType("numeric(15,3)"); b.Property(x => x.Irpp).HasColumnType("numeric(15,3)"); b.Property(x => x.Avances).HasColumnType("numeric(15,3)"); b.Property(x => x.NetAPayer).HasColumnType("numeric(15,3)");
+        b.HasIndex(x => new { x.EntrepriseId, x.EmployeId, x.Periode }).IsUnique(); b.HasIndex(x => new { x.EntrepriseId, x.Periode });
     }
 }
 
@@ -98,6 +233,21 @@ internal sealed class OtpCodeConfiguration : IEntityTypeConfiguration<OtpCode>
         b.Property(o => o.Code).HasMaxLength(6).IsRequired();
         b.Property(o => o.Type).HasConversion<string>().HasMaxLength(50);
         b.HasIndex(o => new { o.UtilisateurId, o.Type, o.EstUtilise, o.ExpireLe });
+    }
+}
+
+internal sealed class OtpDemandeAccesConfiguration : IEntityTypeConfiguration<OtpDemandeAcces>
+{
+    public void Configure(EntityTypeBuilder<OtpDemandeAcces> b)
+    {
+        b.ToTable("OtpDemandesAcces"); b.HasKey(x => x.Id);
+        b.Property(x => x.Email).HasMaxLength(320).IsRequired();
+        b.Property(x => x.Telephone).HasMaxLength(20).IsRequired();
+        b.Property(x => x.Canal).HasMaxLength(10).IsRequired();
+        b.Property(x => x.EmailCodeHash).HasMaxLength(64).IsRequired();
+        b.Property(x => x.SmsCodeHash).HasMaxLength(64).IsRequired();
+        b.Property(x => x.VerificationTokenHash).HasMaxLength(64);
+        b.HasIndex(x => new { x.Email, x.Telephone, x.EstUtilise, x.ExpireLe });
     }
 }
 
@@ -306,6 +456,48 @@ internal sealed class FactureConfiguration : IEntityTypeConfiguration<Facture>
         b.HasIndex(f => f.Statut);
         b.HasMany(f => f.Lignes).WithOne().HasForeignKey(l => l.FactureId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(f => f.Historique).WithOne().HasForeignKey(h => h.FactureId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class DocumentCommercialConfiguration : IEntityTypeConfiguration<DocumentCommercial>
+{
+    public void Configure(EntityTypeBuilder<DocumentCommercial> b)
+    {
+        b.ToTable("DocumentsCommerciaux"); b.HasKey(d => d.Id);
+        b.Property(d => d.Type).HasMaxLength(30).IsRequired();
+        b.Property(d => d.Numero).HasMaxLength(50).IsRequired();
+        b.Property(d => d.Statut).HasMaxLength(30).IsRequired();
+        b.Property(d => d.TotalHt).HasColumnType("numeric(15,3)");
+        b.Property(d => d.TotalTva).HasColumnType("numeric(15,3)");
+        b.Property(d => d.TotalTtc).HasColumnType("numeric(15,3)");
+        b.Property(d => d.LignesJson).HasColumnType("text").IsRequired();
+        b.Property(d => d.Reference).HasMaxLength(100); b.Property(d => d.Notes).HasMaxLength(1000);
+        b.HasIndex(d => new { d.EntrepriseId, d.Numero }).IsUnique();
+        b.HasIndex(d => d.ClientId);
+    }
+}
+
+internal sealed class FactureFournisseurConfiguration : IEntityTypeConfiguration<FactureFournisseur>
+{
+    public void Configure(EntityTypeBuilder<FactureFournisseur> b)
+    {
+        b.ToTable("FacturesFournisseur"); b.HasKey(f => f.Id);
+        b.Property(f => f.Numero).HasMaxLength(80).IsRequired(); b.Property(f => f.Statut).HasMaxLength(30).IsRequired();
+        b.Property(f => f.TotalHt).HasColumnType("numeric(15,3)"); b.Property(f => f.TotalTva).HasColumnType("numeric(15,3)"); b.Property(f => f.TotalTtc).HasColumnType("numeric(15,3)");
+        b.Property(f => f.TauxRetenue).HasColumnType("numeric(5,3)"); b.Property(f => f.MontantRetenue).HasColumnType("numeric(15,3)"); b.Property(f => f.NetAPayer).HasColumnType("numeric(15,3)"); b.Property(f => f.MontantPaye).HasColumnType("numeric(15,3)");
+        b.Property(f => f.LignesJson).HasColumnType("text").IsRequired(); b.Property(f => f.Reference).HasMaxLength(100); b.Property(f => f.Notes).HasMaxLength(1000);
+        b.HasIndex(f => new { f.EntrepriseId, f.Numero }).IsUnique(); b.HasIndex(f => f.FournisseurId);
+    }
+}
+
+internal sealed class PaiementFournisseurConfiguration : IEntityTypeConfiguration<PaiementFournisseur>
+{
+    public void Configure(EntityTypeBuilder<PaiementFournisseur> b)
+    {
+        b.ToTable("PaiementsFournisseur"); b.HasKey(p => p.Id);
+        b.Property(p => p.Montant).HasColumnType("numeric(15,3)").IsRequired(); b.Property(p => p.Mode).HasConversion<string>().HasMaxLength(20);
+        b.Property(p => p.Reference).HasMaxLength(100); b.Property(p => p.Notes).HasMaxLength(500);
+        b.HasIndex(p => p.FactureFournisseurId); b.HasIndex(p => p.EntrepriseId);
     }
 }
 

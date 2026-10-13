@@ -1,0 +1,3 @@
+model,precision,recall,f1,roc_auc
+logistic_regression,0.6292,0.1873,0.2887,0.6742
+lightgbm,0.6667,0.1739,0.2759,0.6806

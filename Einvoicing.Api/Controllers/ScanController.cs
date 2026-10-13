@@ -11,6 +11,7 @@ namespace Einvoicing.Api.Controllers;
 [Authorize]
 public sealed class ScanController(
     IScanService scanService,
+    IOcrErrorDetectionService ocrErrorDetectionService,
     ICurrentUserService currentUser) : ControllerBase
 {
     private Guid? EntrepriseIdOpt => currentUser.EntrepriseId;
@@ -66,5 +67,30 @@ public sealed class ScanController(
 
         var result = await scanService.ValidateAsync(entrepriseId, utilisateurId, request, ct);
         return Ok(result);
+    }
+
+    [HttpPost("ocr-error/score")]
+    [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(OcrErrorScoreDto), 200)]
+    public async Task<IActionResult> ScoreOcrError([FromBody] OcrErrorScoreRequest request, CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out _, out _);
+        if (guard is not null) return guard;
+
+        try
+        {
+            return Ok(await ocrErrorDetectionService.ScoreAsync(request, ct));
+        }
+        catch (HttpRequestException)
+        {
+            return Problem(
+                title: "Service d'analyse OCR indisponible",
+                detail: "Le service ML ne répond pas. Réessayez dans quelques instants.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 }

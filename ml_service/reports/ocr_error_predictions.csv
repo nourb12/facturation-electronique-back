@@ -1,0 +1,901 @@
+invoice_id,ocr_error,injected_issues,error_probability,review_status
+OCR-003572,0,,0.0027,ok
+OCR-001398,0,,0.0046,ok
+OCR-002724,1,Format de montant invalide | Matricule fiscal invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001979,1,Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-003096,1,Fournisseur non identifié | Champ obligatoire manquant,1.0,suspect
+OCR-003140,1,Fournisseur non identifié | Matricule fiscal invalide,1.0,suspect
+OCR-002210,0,,0.0015,ok
+OCR-003650,0,,0.0053,ok
+OCR-001666,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié,1.0,suspect
+OCR-002624,0,,0.0032,ok
+OCR-000146,0,,0.0014,ok
+OCR-000707,0,,0.0017,ok
+OCR-002491,0,,0.0016,ok
+OCR-002538,0,,0.0022,ok
+OCR-001792,0,,0.0045,ok
+OCR-000306,0,,0.0014,ok
+OCR-001430,0,,0.0014,ok
+OCR-002968,0,,0.0014,ok
+OCR-001169,0,,0.0017,ok
+OCR-001324,0,,0.0026,ok
+OCR-000709,0,,0.0046,ok
+OCR-003877,0,,0.0019,ok
+OCR-000404,0,,0.0038,ok
+OCR-001356,0,,0.0016,ok
+OCR-003160,1,Format de date invalide,0.9954,suspect
+OCR-002492,0,,0.0014,ok
+OCR-001191,0,,0.0015,ok
+OCR-001610,0,,0.0035,ok
+OCR-001724,1,Caractère confondu dans une valeur extraite | Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-003004,0,,0.0029,ok
+OCR-000468,0,,0.0026,ok
+OCR-001550,0,,0.0029,ok
+OCR-001784,0,,0.0042,ok
+OCR-002466,0,,0.0014,ok
+OCR-001606,1,Caractère confondu dans une valeur extraite,0.9694,suspect
+OCR-003623,0,,0.0021,ok
+OCR-000133,0,,0.0018,ok
+OCR-001965,0,,0.0042,ok
+OCR-003909,0,,0.0022,ok
+OCR-002236,0,,0.0066,ok
+OCR-002023,0,,0.0012,ok
+OCR-002238,0,,0.0014,ok
+OCR-004299,1,Format de date invalide,0.9908,suspect
+OCR-000643,0,,0.0022,ok
+OCR-003844,0,,0.0042,ok
+OCR-002705,0,,0.0027,ok
+OCR-002153,0,,0.0017,ok
+OCR-004179,0,,0.0015,ok
+OCR-002090,0,,0.0022,ok
+OCR-002413,0,,0.0014,ok
+OCR-004323,0,,0.002,ok
+OCR-000868,0,,0.008,ok
+OCR-003309,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-000570,1,Format de montant invalide,0.986,suspect
+OCR-001678,0,,0.0051,ok
+OCR-001368,1,Format de date invalide | Fournisseur non identifié | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-004407,0,,0.0019,ok
+OCR-001498,0,,0.0041,ok
+OCR-001636,0,,0.0015,ok
+OCR-000293,0,,0.0027,ok
+OCR-002973,0,,0.0014,ok
+OCR-001255,0,,0.0022,ok
+OCR-001544,0,,0.0014,ok
+OCR-003879,0,,0.0035,ok
+OCR-002182,0,,0.0032,ok
+OCR-001660,0,,0.0047,ok
+OCR-004326,1,Champ obligatoire manquant | Matricule fiscal invalide,1.0,suspect
+OCR-003675,0,,0.0018,ok
+OCR-001513,0,,0.0028,ok
+OCR-003185,0,,0.0028,ok
+OCR-001932,0,,0.0065,ok
+OCR-004305,0,,0.0032,ok
+OCR-001160,0,,0.002,ok
+OCR-002404,0,,0.0042,ok
+OCR-002138,0,,0.002,ok
+OCR-004474,0,,0.0048,ok
+OCR-001345,1,Incohérence de calcul HT + TVA ≠ TTC | Format de montant invalide,1.0,suspect
+OCR-001506,0,,0.0014,ok
+OCR-003119,1,Champ obligatoire manquant | Format de date invalide | Format de montant invalide,1.0,suspect
+OCR-002946,0,,0.0015,ok
+OCR-000278,0,,0.0015,ok
+OCR-001595,1,Champ obligatoire manquant | Fournisseur non identifié | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001545,0,,0.0029,ok
+OCR-001177,0,,0.0032,ok
+OCR-002984,0,,0.0049,ok
+OCR-000285,0,,0.0014,ok
+OCR-003981,0,,0.0017,ok
+OCR-003333,0,,0.0034,ok
+OCR-003604,0,,0.0027,ok
+OCR-004331,0,,0.0027,ok
+OCR-003773,0,,0.0012,ok
+OCR-000524,0,,0.0039,ok
+OCR-003015,0,,0.0128,ok
+OCR-003020,0,,0.0012,ok
+OCR-003421,0,,0.0051,ok
+OCR-000365,1,Caractère confondu dans une valeur extraite | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-000356,1,Caractère confondu dans une valeur extraite | Matricule fiscal invalide,1.0,suspect
+OCR-001084,0,,0.0018,ok
+OCR-004349,0,,0.0044,ok
+OCR-000682,0,,0.0011,ok
+OCR-000685,0,,0.0019,ok
+OCR-000638,0,,0.0025,ok
+OCR-003022,0,,0.0019,ok
+OCR-002225,0,,0.0035,ok
+OCR-000473,0,,0.0034,ok
+OCR-004370,0,,0.0018,ok
+OCR-000192,0,,0.0047,ok
+OCR-003266,0,,0.0024,ok
+OCR-003133,1,Format de date invalide | Matricule fiscal invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-001884,1,Champ obligatoire manquant | Format de date invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-003149,0,,0.0016,ok
+OCR-003277,0,,0.0029,ok
+OCR-003073,0,,0.0032,ok
+OCR-003744,0,,0.0054,ok
+OCR-001565,0,,0.002,ok
+OCR-003731,1,Champ obligatoire manquant | Format de date invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-001957,0,,0.0031,ok
+OCR-002248,0,,0.0029,ok
+OCR-001224,0,,0.0019,ok
+OCR-001719,0,,0.0036,ok
+OCR-002719,1,Format de date invalide,0.9897,suspect
+OCR-002352,1,Format de montant invalide,0.9882,suspect
+OCR-001770,0,,0.0021,ok
+OCR-003841,0,,0.0043,ok
+OCR-003775,1,Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-001136,1,Caractère confondu dans une valeur extraite,0.9339,suspect
+OCR-004242,1,Caractère confondu dans une valeur extraite | Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-000001,0,,0.0093,ok
+OCR-000168,0,,0.0042,ok
+OCR-003658,0,,0.0011,ok
+OCR-002926,1,Matricule fiscal invalide,0.9956,suspect
+OCR-002812,1,Matricule fiscal invalide | Fournisseur non identifié,1.0,suspect
+OCR-002162,1,Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-002967,1,Matricule fiscal invalide,0.9919,suspect
+OCR-003057,0,,0.0033,ok
+OCR-001592,0,,0.0014,ok
+OCR-001167,0,,0.0046,ok
+OCR-001388,0,,0.0017,ok
+OCR-002429,0,,0.0014,ok
+OCR-000048,0,,0.0027,ok
+OCR-000705,1,Matricule fiscal invalide | Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-002892,0,,0.0019,ok
+OCR-003706,0,,0.0014,ok
+OCR-001478,1,Incohérence de calcul HT + TVA ≠ TTC,0.9844,suspect
+OCR-003727,0,,0.003,ok
+OCR-003863,1,Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-002896,0,,0.0014,ok
+OCR-003210,1,Incohérence de calcul HT + TVA ≠ TTC,0.9958,suspect
+OCR-002161,0,,0.0022,ok
+OCR-000183,0,,0.003,ok
+OCR-002228,0,,0.002,ok
+OCR-002351,0,,0.0019,ok
+OCR-003281,0,,0.0048,ok
+OCR-002523,0,,0.0016,ok
+OCR-003355,0,,0.0041,ok
+OCR-000036,0,,0.0027,ok
+OCR-003186,0,,0.0026,ok
+OCR-000505,0,,0.0014,ok
+OCR-003618,0,,0.0021,ok
+OCR-003939,0,,0.0049,ok
+OCR-001748,0,,0.0014,ok
+OCR-003278,0,,0.0025,ok
+OCR-003374,0,,0.0016,ok
+OCR-001582,0,,0.0076,ok
+OCR-002916,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-000550,0,,0.0017,ok
+OCR-004122,0,,0.0013,ok
+OCR-004309,0,,0.0022,ok
+OCR-000238,0,,0.0047,ok
+OCR-002784,0,,0.0014,ok
+OCR-003574,0,,0.0056,ok
+OCR-001246,0,,0.0034,ok
+OCR-003996,0,,0.0063,ok
+OCR-001987,0,,0.0019,ok
+OCR-003922,0,,0.0043,ok
+OCR-002566,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Fournisseur non identifié,1.0,suspect
+OCR-002201,0,,0.0014,ok
+OCR-000515,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-003881,0,,0.0031,ok
+OCR-002880,0,,0.0031,ok
+OCR-004145,0,,0.0024,ok
+OCR-003575,0,,0.0027,ok
+OCR-001870,1,Fournisseur non identifié,0.9983,suspect
+OCR-002194,0,,0.0022,ok
+OCR-001089,0,,0.0047,ok
+OCR-002000,1,Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-003479,0,,0.0017,ok
+OCR-002263,0,,0.0012,ok
+OCR-000104,1,Format de date invalide,0.9913,suspect
+OCR-002282,0,,0.0014,ok
+OCR-003445,0,,0.002,ok
+OCR-004067,0,,0.0034,ok
+OCR-002064,1,Format de montant invalide,0.9894,suspect
+OCR-000537,1,Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-003940,0,,0.0014,ok
+OCR-003581,0,,0.0023,ok
+OCR-003501,0,,0.0035,ok
+OCR-000061,0,,0.0015,ok
+OCR-000366,0,,0.0034,ok
+OCR-001493,0,,0.0048,ok
+OCR-003929,0,,0.0012,ok
+OCR-003126,1,Matricule fiscal invalide,0.9855,suspect
+OCR-003416,1,Format de montant invalide,0.9932,suspect
+OCR-002939,0,,0.0021,ok
+OCR-000189,0,,0.0043,ok
+OCR-001805,0,,0.0016,ok
+OCR-003962,0,,0.0015,ok
+OCR-002838,0,,0.0054,ok
+OCR-000799,0,,0.0079,ok
+OCR-002567,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001537,0,,0.0032,ok
+OCR-001758,0,,0.0034,ok
+OCR-001604,0,,0.0033,ok
+OCR-002783,0,,0.003,ok
+OCR-004432,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié,1.0,suspect
+OCR-001551,0,,0.0014,ok
+OCR-003271,1,Fournisseur non identifié | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-004111,0,,0.0026,ok
+OCR-001878,0,,0.0015,ok
+OCR-002115,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-002955,1,Matricule fiscal invalide | Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-000557,0,,0.0014,ok
+OCR-002825,1,Format de montant invalide,0.9896,suspect
+OCR-001709,0,,0.0059,ok
+OCR-004045,0,,0.0041,ok
+OCR-002084,0,,0.0105,ok
+OCR-000323,1,Champ obligatoire manquant | Fournisseur non identifié,1.0,suspect
+OCR-002281,0,,0.0033,ok
+OCR-003218,0,,0.0028,ok
+OCR-000050,0,,0.0036,ok
+OCR-003629,1,Champ obligatoire manquant,0.9794,suspect
+OCR-000888,1,Champ obligatoire manquant,0.9582,suspect
+OCR-003859,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-002003,0,,0.0032,ok
+OCR-001803,0,,0.0025,ok
+OCR-000004,0,,0.0016,ok
+OCR-000754,0,,0.0015,ok
+OCR-003589,0,,0.0018,ok
+OCR-000750,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002769,0,,0.0038,ok
+OCR-001124,0,,0.0025,ok
+OCR-000456,1,Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-004172,0,,0.0037,ok
+OCR-003707,0,,0.0028,ok
+OCR-000729,1,Caractère confondu dans une valeur extraite,0.9371,suspect
+OCR-004476,0,,0.0014,ok
+OCR-003243,1,Matricule fiscal invalide,0.9928,suspect
+OCR-001359,0,,0.0015,ok
+OCR-000230,0,,0.0024,ok
+OCR-001963,0,,0.0027,ok
+OCR-002092,0,,0.0031,ok
+OCR-003241,0,,0.0037,ok
+OCR-001227,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié | Format de date invalide,1.0,suspect
+OCR-004232,0,,0.004,ok
+OCR-002181,0,,0.0023,ok
+OCR-001843,0,,0.0019,ok
+OCR-003262,1,Champ obligatoire manquant | Format de date invalide,1.0,suspect
+OCR-001925,0,,0.0033,ok
+OCR-001766,0,,0.0015,ok
+OCR-000827,0,,0.0016,ok
+OCR-001989,1,Incohérence de calcul HT + TVA ≠ TTC | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-000787,0,,0.0017,ok
+OCR-000976,0,,0.0029,ok
+OCR-002603,0,,0.0034,ok
+OCR-004010,0,,0.0014,ok
+OCR-000561,0,,0.0025,ok
+OCR-002141,0,,0.0029,ok
+OCR-001541,0,,0.0024,ok
+OCR-001692,0,,0.002,ok
+OCR-001897,0,,0.0014,ok
+OCR-000298,0,,0.0016,ok
+OCR-001955,1,Format de date invalide | Champ obligatoire manquant | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-000103,1,Caractère confondu dans une valeur extraite | Format de date invalide,1.0,suspect
+OCR-002589,0,,0.0015,ok
+OCR-002621,1,Champ obligatoire manquant | Format de date invalide,1.0,suspect
+OCR-004352,1,Caractère confondu dans une valeur extraite | Format de montant invalide,1.0,suspect
+OCR-000259,1,Caractère confondu dans une valeur extraite | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-004279,1,Caractère confondu dans une valeur extraite | Champ obligatoire manquant,1.0,suspect
+OCR-000936,1,Format de date invalide,0.9921,suspect
+OCR-002882,1,Incohérence de calcul HT + TVA ≠ TTC | Format de montant invalide,1.0,suspect
+OCR-000098,1,Champ obligatoire manquant,0.9847,suspect
+OCR-001248,1,Matricule fiscal invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002533,1,Format de date invalide,0.9902,suspect
+OCR-004304,0,,0.0032,ok
+OCR-001970,0,,0.0037,ok
+OCR-002150,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-001249,0,,0.0016,ok
+OCR-002184,0,,0.0014,ok
+OCR-004327,0,,0.0053,ok
+OCR-004201,1,Matricule fiscal invalide,0.9929,suspect
+OCR-001756,0,,0.0026,ok
+OCR-003893,1,Matricule fiscal invalide,0.9937,suspect
+OCR-003489,1,Champ obligatoire manquant,0.9876,suspect
+OCR-003287,1,Format de date invalide | Fournisseur non identifié | Champ obligatoire manquant,1.0,suspect
+OCR-001117,0,,0.0014,ok
+OCR-001763,0,,0.0014,ok
+OCR-001527,0,,0.003,ok
+OCR-002002,0,,0.0014,ok
+OCR-002785,0,,0.0024,ok
+OCR-002119,0,,0.0012,ok
+OCR-000165,0,,0.0015,ok
+OCR-003371,0,,0.0014,ok
+OCR-003156,0,,0.0014,ok
+OCR-001366,0,,0.0027,ok
+OCR-001065,0,,0.002,ok
+OCR-004129,0,,0.0025,ok
+OCR-002813,0,,0.0056,ok
+OCR-000931,0,,0.0021,ok
+OCR-002131,0,,0.0026,ok
+OCR-002014,0,,0.002,ok
+OCR-001276,0,,0.004,ok
+OCR-003811,0,,0.0026,ok
+OCR-003561,0,,0.0014,ok
+OCR-001902,0,,0.0015,ok
+OCR-002166,0,,0.0015,ok
+OCR-001927,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié | Format de montant invalide,1.0,suspect
+OCR-002678,1,Caractère confondu dans une valeur extraite | Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-002082,1,Matricule fiscal invalide,0.9939,suspect
+OCR-004061,1,Champ obligatoire manquant | Format de date invalide,1.0,suspect
+OCR-000487,0,,0.0027,ok
+OCR-002868,0,,0.003,ok
+OCR-001910,0,,0.0012,ok
+OCR-003187,0,,0.0023,ok
+OCR-001238,0,,0.0016,ok
+OCR-004078,0,,0.0015,ok
+OCR-000769,0,,0.0032,ok
+OCR-001920,1,Fournisseur non identifié | Matricule fiscal invalide,1.0,suspect
+OCR-000733,1,Matricule fiscal invalide,0.9898,suspect
+OCR-002072,0,,0.009,ok
+OCR-001147,0,,0.0054,ok
+OCR-001624,0,,0.0031,ok
+OCR-001901,1,Fournisseur non identifié | Matricule fiscal invalide,1.0,suspect
+OCR-004182,0,,0.0026,ok
+OCR-000819,0,,0.0024,ok
+OCR-000956,0,,0.0014,ok
+OCR-003768,0,,0.0014,ok
+OCR-002486,0,,0.0023,ok
+OCR-003716,1,Incohérence de calcul HT + TVA ≠ TTC,0.9966,suspect
+OCR-000387,0,,0.0024,ok
+OCR-003846,1,Caractère confondu dans une valeur extraite | Format de date invalide,1.0,suspect
+OCR-004486,1,Format de date invalide | Fournisseur non identifié,1.0,suspect
+OCR-001722,0,,0.0045,ok
+OCR-001066,1,Fournisseur non identifié | Champ obligatoire manquant,1.0,suspect
+OCR-000935,0,,0.0014,ok
+OCR-003167,0,,0.0039,ok
+OCR-002682,0,,0.006,ok
+OCR-002288,0,,0.0037,ok
+OCR-002291,0,,0.002,ok
+OCR-000216,1,Caractère confondu dans une valeur extraite | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-001415,0,,0.0031,ok
+OCR-004148,0,,0.0056,ok
+OCR-000011,0,,0.0026,ok
+OCR-000428,0,,0.0024,ok
+OCR-004358,0,,0.0014,ok
+OCR-003719,0,,0.006,ok
+OCR-003542,1,Format de date invalide | Caractère confondu dans une valeur extraite | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002780,1,Incohérence de calcul HT + TVA ≠ TTC,0.9895,suspect
+OCR-001767,0,,0.0055,ok
+OCR-000064,0,,0.0016,ok
+OCR-004159,1,Format de montant invalide | Format de date invalide | Fournisseur non identifié,1.0,suspect
+OCR-001063,0,,0.0065,ok
+OCR-003346,0,,0.0014,ok
+OCR-003901,0,,0.0056,ok
+OCR-002379,0,,0.0037,ok
+OCR-000609,0,,0.0033,ok
+OCR-002787,0,,0.0056,ok
+OCR-001257,0,,0.0035,ok
+OCR-003935,0,,0.0029,ok
+OCR-003560,0,,0.0022,ok
+OCR-000761,0,,0.0014,ok
+OCR-000553,1,Format de montant invalide | Matricule fiscal invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-000939,0,,0.0014,ok
+OCR-002272,0,,0.0039,ok
+OCR-000291,0,,0.0016,ok
+OCR-002704,1,Matricule fiscal invalide,0.9921,suspect
+OCR-003344,0,,0.0029,ok
+OCR-003301,0,,0.0019,ok
+OCR-002200,1,Fournisseur non identifié | Format de montant invalide,1.0,suspect
+OCR-002974,1,Matricule fiscal invalide | Caractère confondu dans une valeur extraite | Champ obligatoire manquant,1.0,suspect
+OCR-003405,0,,0.0018,ok
+OCR-003205,0,,0.0033,ok
+OCR-003182,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Format de montant invalide,1.0,suspect
+OCR-001693,1,Champ obligatoire manquant | Matricule fiscal invalide,1.0,suspect
+OCR-002070,0,,0.0018,ok
+OCR-001591,0,,0.0041,ok
+OCR-003509,1,Fournisseur non identifié | Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000094,0,,0.0021,ok
+OCR-001934,1,Champ obligatoire manquant | Matricule fiscal invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002258,0,,0.0027,ok
+OCR-000243,0,,0.0016,ok
+OCR-002582,0,,0.0025,ok
+OCR-004246,0,,0.0016,ok
+OCR-000130,0,,0.0014,ok
+OCR-002079,0,,0.0018,ok
+OCR-000187,1,Matricule fiscal invalide,0.9842,suspect
+OCR-001379,0,,0.0016,ok
+OCR-001184,0,,0.0025,ok
+OCR-001524,0,,0.0016,ok
+OCR-000915,1,Fournisseur non identifié | Format de montant invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-003783,0,,0.0026,ok
+OCR-001691,1,Incohérence de calcul HT + TVA ≠ TTC,0.9938,suspect
+OCR-001899,0,,0.0014,ok
+OCR-003215,0,,0.0014,ok
+OCR-002536,0,,0.0012,ok
+OCR-002698,0,,0.0047,ok
+OCR-000069,0,,0.0078,ok
+OCR-001270,0,,0.0039,ok
+OCR-001424,0,,0.0016,ok
+OCR-001706,0,,0.002,ok
+OCR-000776,0,,0.0031,ok
+OCR-002036,0,,0.003,ok
+OCR-002085,1,Format de montant invalide | Fournisseur non identifié,1.0,suspect
+OCR-003003,0,,0.0048,ok
+OCR-000280,0,,0.0022,ok
+OCR-004170,0,,0.0015,ok
+OCR-004449,1,Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-004381,0,,0.0015,ok
+OCR-003410,0,,0.0036,ok
+OCR-000429,1,Fournisseur non identifié | Caractère confondu dans une valeur extraite | Format de montant invalide,1.0,suspect
+OCR-004141,0,,0.0061,ok
+OCR-003213,1,Fournisseur non identifié | Caractère confondu dans une valeur extraite | Matricule fiscal invalide,1.0,suspect
+OCR-000862,0,,0.0086,ok
+OCR-004261,1,Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-003475,0,,0.0024,ok
+OCR-004372,0,,0.003,ok
+OCR-003896,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-004178,0,,0.0011,ok
+OCR-002444,1,Incohérence de calcul HT + TVA ≠ TTC,0.9874,suspect
+OCR-003810,0,,0.0055,ok
+OCR-002256,1,Champ obligatoire manquant,0.9534,suspect
+OCR-000608,1,Fournisseur non identifié | Format de montant invalide,1.0,suspect
+OCR-004270,0,,0.0037,ok
+OCR-003429,0,,0.0055,ok
+OCR-002298,0,,0.0025,ok
+OCR-000689,0,,0.0023,ok
+OCR-001943,0,,0.0068,ok
+OCR-001776,0,,0.0029,ok
+OCR-001622,0,,0.0014,ok
+OCR-002158,0,,0.0043,ok
+OCR-004257,0,,0.0017,ok
+OCR-001561,0,,0.0022,ok
+OCR-003516,0,,0.0035,ok
+OCR-000648,0,,0.0029,ok
+OCR-002628,0,,0.0015,ok
+OCR-001429,1,Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-003461,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-003018,0,,0.0015,ok
+OCR-001547,0,,0.0047,ok
+OCR-004333,0,,0.0037,ok
+OCR-004217,0,,0.0014,ok
+OCR-003558,0,,0.0019,ok
+OCR-000625,0,,0.004,ok
+OCR-002037,0,,0.0015,ok
+OCR-002579,0,,0.0016,ok
+OCR-003036,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-004077,0,,0.0015,ok
+OCR-002982,1,Caractère confondu dans une valeur extraite | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002108,0,,0.0017,ok
+OCR-003690,0,,0.0014,ok
+OCR-003938,0,,0.0055,ok
+OCR-002512,1,Incohérence de calcul HT + TVA ≠ TTC,0.9926,suspect
+OCR-003079,0,,0.0029,ok
+OCR-004353,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000127,0,,0.0014,ok
+OCR-000396,1,Champ obligatoire manquant | Format de date invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002480,0,,0.0021,ok
+OCR-002169,0,,0.0029,ok
+OCR-001682,0,,0.0032,ok
+OCR-001205,0,,0.0026,ok
+OCR-002989,0,,0.0014,ok
+OCR-000368,0,,0.0039,ok
+OCR-000320,0,,0.0031,ok
+OCR-004291,0,,0.0012,ok
+OCR-003734,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-001511,1,Incohérence de calcul HT + TVA ≠ TTC,0.9975,suspect
+OCR-001502,1,Champ obligatoire manquant | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-001005,0,,0.0014,ok
+OCR-004416,0,,0.006,ok
+OCR-000726,0,,0.0029,ok
+OCR-001729,0,,0.0021,ok
+OCR-003039,1,Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-003986,0,,0.0014,ok
+OCR-001572,0,,0.0014,ok
+OCR-000348,0,,0.0017,ok
+OCR-002775,0,,0.0016,ok
+OCR-003763,0,,0.0015,ok
+OCR-001728,1,Champ obligatoire manquant,0.9804,suspect
+OCR-001907,0,,0.0014,ok
+OCR-004360,1,Caractère confondu dans une valeur extraite,0.9837,suspect
+OCR-003407,0,,0.0011,ok
+OCR-003532,0,,0.0022,ok
+OCR-001308,1,Format de montant invalide | Champ obligatoire manquant | Fournisseur non identifié,1.0,suspect
+OCR-002583,0,,0.0051,ok
+OCR-001520,0,,0.0026,ok
+OCR-003700,0,,0.0021,ok
+OCR-002797,0,,0.0014,ok
+OCR-003535,1,Format de date invalide,0.9927,suspect
+OCR-003146,0,,0.0038,ok
+OCR-000642,0,,0.0023,ok
+OCR-002171,0,,0.0028,ok
+OCR-002839,1,Champ obligatoire manquant,0.9807,suspect
+OCR-002348,1,Caractère confondu dans une valeur extraite,0.9887,suspect
+OCR-003418,1,Format de montant invalide | Fournisseur non identifié,1.0,suspect
+OCR-003299,0,,0.0014,ok
+OCR-001081,1,Incohérence de calcul HT + TVA ≠ TTC,0.981,suspect
+OCR-000732,1,Champ obligatoire manquant,0.9773,suspect
+OCR-001681,1,Champ obligatoire manquant | Caractère confondu dans une valeur extraite | Fournisseur non identifié,1.0,suspect
+OCR-002756,1,Fournisseur non identifié | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-004492,0,,0.0022,ok
+OCR-002597,0,,0.0015,ok
+OCR-001806,0,,0.0042,ok
+OCR-003725,0,,0.0016,ok
+OCR-000701,0,,0.0017,ok
+OCR-001322,0,,0.0062,ok
+OCR-002368,0,,0.0014,ok
+OCR-003280,1,Fournisseur non identifié,0.9986,suspect
+OCR-002661,1,Matricule fiscal invalide | Fournisseur non identifié,1.0,suspect
+OCR-003396,0,,0.0028,ok
+OCR-004428,0,,0.0066,ok
+OCR-003682,1,Format de montant invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001285,0,,0.0028,ok
+OCR-003220,1,Caractère confondu dans une valeur extraite | Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-001197,1,Matricule fiscal invalide,0.9876,suspect
+OCR-002143,0,,0.0025,ok
+OCR-000411,0,,0.0015,ok
+OCR-002146,0,,0.0031,ok
+OCR-004271,1,Champ obligatoire manquant | Caractère confondu dans une valeur extraite | Fournisseur non identifié,1.0,suspect
+OCR-000565,0,,0.0037,ok
+OCR-000816,0,,0.0015,ok
+OCR-001790,0,,0.0021,ok
+OCR-003533,1,Format de montant invalide | Champ obligatoire manquant | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-003687,0,,0.0014,ok
+OCR-001567,0,,0.0054,ok
+OCR-002270,0,,0.0014,ok
+OCR-003292,0,,0.0039,ok
+OCR-000371,0,,0.0032,ok
+OCR-001820,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-002535,0,,0.002,ok
+OCR-000576,0,,0.0015,ok
+OCR-000790,0,,0.0017,ok
+OCR-004399,1,Champ obligatoire manquant | Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-003366,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002257,1,Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-004049,0,,0.0027,ok
+OCR-002117,1,Incohérence de calcul HT + TVA ≠ TTC,0.9865,suspect
+OCR-002517,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-000831,0,,0.0059,ok
+OCR-001711,0,,0.0021,ok
+OCR-003440,0,,0.0014,ok
+OCR-002406,0,,0.0036,ok
+OCR-001371,0,,0.0035,ok
+OCR-002190,0,,0.0039,ok
+OCR-001375,0,,0.0018,ok
+OCR-000002,0,,0.0036,ok
+OCR-002089,0,,0.0022,ok
+OCR-001882,0,,0.0017,ok
+OCR-000454,1,Caractère confondu dans une valeur extraite | Format de date invalide | Matricule fiscal invalide,1.0,suspect
+OCR-001313,0,,0.0031,ok
+OCR-001449,0,,0.0012,ok
+OCR-003855,0,,0.0028,ok
+OCR-000172,0,,0.0028,ok
+OCR-001357,0,,0.0014,ok
+OCR-002323,0,,0.0016,ok
+OCR-000854,0,,0.0028,ok
+OCR-001848,0,,0.0011,ok
+OCR-004228,0,,0.0027,ok
+OCR-002841,1,Champ obligatoire manquant,0.9594,suspect
+OCR-003732,1,Format de montant invalide,0.9912,suspect
+OCR-001576,0,,0.003,ok
+OCR-002637,0,,0.0033,ok
+OCR-002011,0,,0.0021,ok
+OCR-002407,0,,0.0031,ok
+OCR-000457,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-001862,0,,0.0036,ok
+OCR-003334,1,Fournisseur non identifié | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002215,0,,0.0023,ok
+OCR-003869,0,,0.0082,ok
+OCR-004021,1,Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-004267,0,,0.0015,ok
+OCR-000786,0,,0.0074,ok
+OCR-002284,0,,0.0024,ok
+OCR-001505,0,,0.0036,ok
+OCR-004288,1,Champ obligatoire manquant | Matricule fiscal invalide | Fournisseur non identifié,1.0,suspect
+OCR-002689,0,,0.0035,ok
+OCR-000718,0,,0.0011,ok
+OCR-000452,0,,0.0025,ok
+OCR-003665,0,,0.0024,ok
+OCR-004227,0,,0.0014,ok
+OCR-001978,1,Matricule fiscal invalide,0.9842,suspect
+OCR-002874,0,,0.002,ok
+OCR-000646,0,,0.0053,ok
+OCR-001687,0,,0.0023,ok
+OCR-000599,0,,0.0017,ok
+OCR-001102,0,,0.0033,ok
+OCR-000100,0,,0.0014,ok
+OCR-000095,0,,0.0039,ok
+OCR-000613,0,,0.0017,ok
+OCR-001818,1,Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-000510,0,,0.0021,ok
+OCR-000382,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-002850,0,,0.0014,ok
+OCR-003307,0,,0.0038,ok
+OCR-000654,0,,0.0019,ok
+OCR-000921,0,,0.0044,ok
+OCR-003106,1,Champ obligatoire manquant,0.9906,suspect
+OCR-001496,1,Format de montant invalide | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-002279,0,,0.0027,ok
+OCR-001658,0,,0.0021,ok
+OCR-003889,0,,0.0019,ok
+OCR-002329,0,,0.0015,ok
+OCR-002018,0,,0.0042,ok
+OCR-003235,0,,0.0033,ok
+OCR-000420,0,,0.0031,ok
+OCR-000143,0,,0.0028,ok
+OCR-003012,0,,0.0015,ok
+OCR-002730,1,Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-004464,0,,0.0075,ok
+OCR-000173,0,,0.0026,ok
+OCR-000985,0,,0.0014,ok
+OCR-002465,0,,0.0023,ok
+OCR-003715,0,,0.0015,ok
+OCR-003411,0,,0.0014,ok
+OCR-004450,0,,0.0034,ok
+OCR-003669,0,,0.0014,ok
+OCR-002065,1,Format de montant invalide | Champ obligatoire manquant | Fournisseur non identifié,1.0,suspect
+OCR-000030,1,Champ obligatoire manquant,0.9624,suspect
+OCR-003823,1,Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-002906,0,,0.0025,ok
+OCR-000092,0,,0.0022,ok
+OCR-000765,0,,0.0016,ok
+OCR-002247,0,,0.0028,ok
+OCR-003540,1,Matricule fiscal invalide,0.9975,suspect
+OCR-004084,0,,0.0056,ok
+OCR-003223,0,,0.0014,ok
+OCR-003091,0,,0.0014,ok
+OCR-001906,0,,0.0046,ok
+OCR-000017,1,Format de date invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-003147,1,Caractère confondu dans une valeur extraite | Matricule fiscal invalide,1.0,suspect
+OCR-002039,0,,0.0017,ok
+OCR-001374,0,,0.0014,ok
+OCR-004140,1,Fournisseur non identifié | Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000584,0,,0.0041,ok
+OCR-003082,0,,0.0027,ok
+OCR-004274,0,,0.0024,ok
+OCR-001509,0,,0.003,ok
+OCR-003375,0,,0.0014,ok
+OCR-001483,0,,0.0024,ok
+OCR-000300,1,Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000464,0,,0.0021,ok
+OCR-002485,0,,0.0014,ok
+OCR-002971,0,,0.0018,ok
+OCR-003441,0,,0.0014,ok
+OCR-002234,0,,0.0026,ok
+OCR-003537,0,,0.0017,ok
+OCR-002221,0,,0.0014,ok
+OCR-004306,0,,0.0012,ok
+OCR-003317,1,Fournisseur non identifié,0.9958,suspect
+OCR-001873,0,,0.0022,ok
+OCR-001737,0,,0.0034,ok
+OCR-003512,0,,0.0047,ok
+OCR-004254,0,,0.0027,ok
+OCR-000849,0,,0.0034,ok
+OCR-003767,1,Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-003191,0,,0.0026,ok
+OCR-000721,0,,0.0044,ok
+OCR-001717,0,,0.0015,ok
+OCR-000343,1,Champ obligatoire manquant | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002464,0,,0.0035,ok
+OCR-001732,0,,0.0017,ok
+OCR-001143,0,,0.0014,ok
+OCR-000715,0,,0.0029,ok
+OCR-002772,0,,0.0022,ok
+OCR-002053,0,,0.0018,ok
+OCR-003395,1,Champ obligatoire manquant,0.9945,suspect
+OCR-000253,0,,0.0014,ok
+OCR-003451,0,,0.0014,ok
+OCR-000265,0,,0.0069,ok
+OCR-002063,0,,0.0016,ok
+OCR-000517,0,,0.0016,ok
+OCR-003014,0,,0.0043,ok
+OCR-003245,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide,1.0,suspect
+OCR-003562,0,,0.0014,ok
+OCR-002129,1,Format de date invalide | Format de montant invalide,1.0,suspect
+OCR-001793,0,,0.0065,ok
+OCR-003273,0,,0.002,ok
+OCR-002944,1,Format de date invalide,0.993,suspect
+OCR-003758,0,,0.0049,ok
+OCR-004113,0,,0.0039,ok
+OCR-002213,1,Incohérence de calcul HT + TVA ≠ TTC | Matricule fiscal invalide | Format de montant invalide,1.0,suspect
+OCR-003617,0,,0.0014,ok
+OCR-002696,0,,0.0028,ok
+OCR-001199,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-000043,1,Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002198,0,,0.0018,ok
+OCR-002473,0,,0.0019,ok
+OCR-000317,0,,0.0014,ok
+OCR-001407,1,Format de date invalide,0.9917,suspect
+OCR-002242,1,Fournisseur non identifié | Format de montant invalide,1.0,suspect
+OCR-000136,0,,0.0016,ok
+OCR-004499,0,,0.0012,ok
+OCR-003952,0,,0.0027,ok
+OCR-002701,0,,0.0024,ok
+OCR-000592,1,Format de date invalide | Matricule fiscal invalide,1.0,suspect
+OCR-000431,0,,0.003,ok
+OCR-002206,1,Fournisseur non identifié | Matricule fiscal invalide,1.0,suspect
+OCR-003941,0,,0.0014,ok
+OCR-003670,0,,0.0026,ok
+OCR-003737,0,,0.0037,ok
+OCR-001697,0,,0.002,ok
+OCR-002855,0,,0.0015,ok
+OCR-003871,0,,0.0052,ok
+OCR-000475,0,,0.0027,ok
+OCR-003625,0,,0.0014,ok
+OCR-001535,1,Champ obligatoire manquant,0.9907,suspect
+OCR-002852,0,,0.0024,ok
+OCR-000808,0,,0.0014,ok
+OCR-002354,0,,0.0022,ok
+OCR-000594,0,,0.0023,ok
+OCR-001391,0,,0.0026,ok
+OCR-002823,0,,0.0062,ok
+OCR-002467,0,,0.0011,ok
+OCR-003926,0,,0.004,ok
+OCR-000518,0,,0.0014,ok
+OCR-000995,0,,0.0023,ok
+OCR-003105,1,Incohérence de calcul HT + TVA ≠ TTC | Format de montant invalide,1.0,suspect
+OCR-003534,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001056,1,Caractère confondu dans une valeur extraite | Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-001569,0,,0.0023,ok
+OCR-002174,1,Format de montant invalide,0.9987,suspect
+OCR-000123,0,,0.0028,ok
+OCR-001171,0,,0.0026,ok
+OCR-000433,0,,0.0014,ok
+OCR-000040,0,,0.0054,ok
+OCR-000789,0,,0.0036,ok
+OCR-004490,1,Incohérence de calcul HT + TVA ≠ TTC | Caractère confondu dans une valeur extraite | Format de date invalide,1.0,suspect
+OCR-002180,0,,0.0029,ok
+OCR-003195,0,,0.0031,ok
+OCR-004202,0,,0.0024,ok
+OCR-003614,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié,1.0,suspect
+OCR-000171,0,,0.0022,ok
+OCR-003890,0,,0.0023,ok
+OCR-002278,1,Format de montant invalide | Matricule fiscal invalide,1.0,suspect
+OCR-002899,1,Format de montant invalide,0.9978,suspect
+OCR-003337,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-002076,0,,0.0014,ok
+OCR-004479,0,,0.0014,ok
+OCR-001794,0,,0.0035,ok
+OCR-003923,0,,0.0022,ok
+OCR-002513,0,,0.0034,ok
+OCR-003360,0,,0.0089,ok
+OCR-003543,0,,0.0031,ok
+OCR-001041,0,,0.0014,ok
+OCR-002750,0,,0.0014,ok
+OCR-001132,0,,0.0023,ok
+OCR-002941,1,Incohérence de calcul HT + TVA ≠ TTC | Format de montant invalide,1.0,suspect
+OCR-003709,0,,0.0023,ok
+OCR-002726,1,Format de montant invalide | Champ obligatoire manquant | Format de date invalide,1.0,suspect
+OCR-003438,0,,0.0021,ok
+OCR-000081,0,,0.0062,ok
+OCR-001683,0,,0.002,ok
+OCR-001017,0,,0.0027,ok
+OCR-000711,0,,0.0022,ok
+OCR-001032,1,Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000442,1,Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-003601,0,,0.0014,ok
+OCR-002290,0,,0.0022,ok
+OCR-004344,0,,0.0025,ok
+OCR-003519,0,,0.0021,ok
+OCR-001002,1,Incohérence de calcul HT + TVA ≠ TTC,0.9848,suspect
+OCR-001923,0,,0.0038,ok
+OCR-001352,1,Caractère confondu dans une valeur extraite | Fournisseur non identifié | Matricule fiscal invalide,1.0,suspect
+OCR-002643,1,Fournisseur non identifié | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002303,0,,0.0021,ok
+OCR-003528,0,,0.002,ok
+OCR-002613,1,Format de date invalide | Fournisseur non identifié,1.0,suspect
+OCR-003332,0,,0.003,ok
+OCR-001292,0,,0.0039,ok
+OCR-001546,0,,0.0016,ok
+OCR-002544,0,,0.0017,ok
+OCR-003102,1,Champ obligatoire manquant | Fournisseur non identifié | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002524,1,Champ obligatoire manquant | Format de montant invalide | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002114,0,,0.0025,ok
+OCR-002273,1,Matricule fiscal invalide,0.9852,suspect
+OCR-002703,1,Fournisseur non identifié | Format de date invalide | Format de montant invalide,1.0,suspect
+OCR-000794,0,,0.0018,ok
+OCR-004094,1,Format de date invalide | Matricule fiscal invalide,1.0,suspect
+OCR-003789,0,,0.002,ok
+OCR-004167,1,Fournisseur non identifié | Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-002498,0,,0.0021,ok
+OCR-003778,1,Format de date invalide | Format de montant invalide,1.0,suspect
+OCR-003777,0,,0.0035,ok
+OCR-001035,0,,0.0033,ok
+OCR-002655,0,,0.0019,ok
+OCR-003493,0,,0.0018,ok
+OCR-003957,0,,0.0025,ok
+OCR-003812,1,Format de date invalide | Incohérence de calcul HT + TVA ≠ TTC | Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-003443,0,,0.0019,ok
+OCR-000569,1,Format de date invalide | Format de montant invalide,1.0,suspect
+OCR-001508,0,,0.0065,ok
+OCR-000610,0,,0.0026,ok
+OCR-003311,0,,0.0014,ok
+OCR-001980,0,,0.0023,ok
+OCR-000895,1,Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-002001,0,,0.002,ok
+OCR-003389,0,,0.0015,ok
+OCR-003259,1,Champ obligatoire manquant,0.9729,suspect
+OCR-001648,0,,0.0018,ok
+OCR-000920,0,,0.0035,ok
+OCR-001280,0,,0.0024,ok
+OCR-002911,0,,0.0014,ok
+OCR-003780,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-002125,0,,0.0016,ok
+OCR-001211,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC | Format de date invalide,1.0,suspect
+OCR-000305,0,,0.0022,ok
+OCR-001586,0,,0.0026,ok
+OCR-000236,0,,0.0033,ok
+OCR-000766,1,Incohérence de calcul HT + TVA ≠ TTC,0.976,suspect
+OCR-003237,0,,0.0065,ok
+OCR-003953,0,,0.0033,ok
+OCR-003491,1,Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000185,0,,0.0012,ok
+OCR-004298,1,Incohérence de calcul HT + TVA ≠ TTC | Fournisseur non identifié,1.0,suspect
+OCR-001992,0,,0.0056,ok
+OCR-001769,0,,0.004,ok
+OCR-004043,0,,0.0012,ok
+OCR-004034,0,,0.0032,ok
+OCR-001872,0,,0.0041,ok
+OCR-003740,0,,0.0014,ok
+OCR-003640,1,Format de date invalide | Caractère confondu dans une valeur extraite | Format de montant invalide,1.0,suspect
+OCR-001799,1,Matricule fiscal invalide | Format de date invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000139,0,,0.0028,ok
+OCR-002350,1,Incohérence de calcul HT + TVA ≠ TTC,0.9917,suspect
+OCR-002568,1,Matricule fiscal invalide,0.9892,suspect
+OCR-002758,0,,0.0027,ok
+OCR-000520,1,Fournisseur non identifié | Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002105,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-000032,1,Incohérence de calcul HT + TVA ≠ TTC | Champ obligatoire manquant,1.0,suspect
+OCR-003426,1,Fournisseur non identifié | Champ obligatoire manquant | Format de montant invalide,1.0,suspect
+OCR-002854,0,,0.0018,ok
+OCR-000132,0,,0.0034,ok
+OCR-003746,0,,0.0014,ok
+OCR-003796,0,,0.0021,ok
+OCR-003430,1,Matricule fiscal invalide,0.9905,suspect
+OCR-002389,0,,0.0018,ok
+OCR-002725,0,,0.0033,ok
+OCR-003087,0,,0.0026,ok
+OCR-000018,1,Matricule fiscal invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000357,0,,0.0035,ok
+OCR-004054,0,,0.0027,ok
+OCR-001302,0,,0.0028,ok
+OCR-003995,0,,0.0014,ok
+OCR-000619,0,,0.0014,ok
+OCR-003849,1,Champ obligatoire manquant | Format de date invalide,1.0,suspect
+OCR-001103,0,,0.0014,ok
+OCR-001986,0,,0.0025,ok
+OCR-003884,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-003240,0,,0.0034,ok
+OCR-003314,0,,0.0033,ok
+OCR-001200,1,Format de montant invalide | Format de date invalide,1.0,suspect
+OCR-000321,0,,0.0033,ok
+OCR-001627,0,,0.002,ok
+OCR-003177,0,,0.0043,ok
+OCR-000422,1,Fournisseur non identifié,0.9984,suspect
+OCR-001996,0,,0.0017,ok
+OCR-000607,0,,0.0014,ok
+OCR-001647,0,,0.0014,ok
+OCR-004295,1,Matricule fiscal invalide | Fournisseur non identifié | Format de date invalide,1.0,suspect
+OCR-002365,0,,0.007,ok
+OCR-002743,0,,0.0015,ok
+OCR-001115,1,Caractère confondu dans une valeur extraite,1.0,suspect
+OCR-001312,1,Fournisseur non identifié | Matricule fiscal invalide | Format de date invalide,1.0,suspect
+OCR-003033,0,,0.0027,ok
+OCR-002584,0,,0.002,ok
+OCR-002479,0,,0.0015,ok
+OCR-003078,0,,0.0018,ok
+OCR-001857,0,,0.0048,ok
+OCR-004019,0,,0.0049,ok
+OCR-003804,1,Fournisseur non identifié | Format de date invalide | Matricule fiscal invalide,1.0,suspect
+OCR-000401,0,,0.0015,ok
+OCR-001428,1,Format de montant invalide | Caractère confondu dans une valeur extraite | Matricule fiscal invalide,1.0,suspect
+OCR-003456,0,,0.0018,ok
+OCR-001845,1,Fournisseur non identifié,0.9974,suspect
+OCR-002083,1,Format de date invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-001435,0,,0.0057,ok
+OCR-002026,0,,0.0045,ok
+OCR-001051,1,Format de montant invalide | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-000532,0,,0.0021,ok
+OCR-000917,1,Format de montant invalide | Champ obligatoire manquant,1.0,suspect
+OCR-000181,1,Champ obligatoire manquant | Incohérence de calcul HT + TVA ≠ TTC,1.0,suspect
+OCR-002447,0,,0.007,ok
+OCR-001810,0,,0.0012,ok
+OCR-001144,0,,0.0015,ok
+OCR-000425,0,,0.0014,ok
+OCR-004080,0,,0.0051,ok
+OCR-003308,1,Matricule fiscal invalide,0.9866,suspect
+OCR-001487,0,,0.0039,ok
+OCR-000350,0,,0.0015,ok
+OCR-000645,1,Format de montant invalide,0.9906,suspect
+OCR-001933,0,,0.0022,ok
+OCR-000666,1,Format de date invalide,0.9955,suspect

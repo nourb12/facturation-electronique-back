@@ -1,0 +1,28 @@
+{
+  "dataset": {
+    "source": "synthetic",
+    "rows": 10000,
+    "train_rows": 8839,
+    "test_rows": 1161,
+    "late_payment_rate": 0.2694,
+    "temporal_cutoff_date": "2025-07-14"
+  },
+  "selection_rule": "max F1, then ROC-AUC, then recall",
+  "models": [
+    {
+      "model": "logistic_regression",
+      "precision": 0.6292,
+      "recall": 0.1873,
+      "f1": 0.2887,
+      "roc_auc": 0.6742
+    },
+    {
+      "model": "lightgbm",
+      "precision": 0.6667,
+      "recall": 0.1739,
+      "f1": 0.2759,
+      "roc_auc": 0.6806
+    }
+  ],
+  "selected_model": "logistic_regression"
+}
