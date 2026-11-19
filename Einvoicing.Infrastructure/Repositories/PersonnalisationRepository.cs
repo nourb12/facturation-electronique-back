@@ -14,7 +14,7 @@ public sealed class PersonnalisationRepository(ContextBaseDeDonnees db) : IPerso
         => await db.Personnalisations.AddAsync(personnalisation, ct);
 
     public void MettreAJour(Personnalisation personnalisation)
-        => db.Personnalisations.Update(personnalisation);
+        => db.MarquerModifie(personnalisation);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

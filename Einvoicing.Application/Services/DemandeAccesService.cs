@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Einvoicing.Application.Configuration;
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Helpers;
 using Einvoicing.Application.Interfaces;
@@ -10,6 +11,8 @@ using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
 using Einvoicing.Domain.Exceptions;
 using Microsoft.Extensions.Logging;
+
+using Einvoicing.Domain;
 
 namespace Einvoicing.Application.Services;
 
@@ -21,8 +24,8 @@ public sealed class DemandeAccesService(
     IFileStorageService fileStorage,
     KycScoringService kycScoring,
     IOcrClient ocrClient,
-    IOtpDemandeAccesService otpService,
     ISmsService smsService,
+    IPlatformConfigurationService platformConfiguration,
     ILogger<DemandeAccesService> logger
 ) : IDemandeAccesService
 {
@@ -39,13 +42,6 @@ public sealed class DemandeAccesService(
         var contactTelephone = string.IsNullOrWhiteSpace(req.Telephone)
             ? req.RespTel?.Trim() ?? string.Empty
             : req.Telephone.Trim();
-
-        await otpService.VerifierEtConsommerAsync(
-            req.OtpVerificationId,
-            req.OtpVerificationToken,
-            email,
-            contactTelephone,
-            ct);
 
         var existant = await utilisateurRepo.ObtenirParEmailAsync(email, ct);
         if (existant is not null)
@@ -98,7 +94,19 @@ public sealed class DemandeAccesService(
             };
         }
         // Scoring KYC
-        var scoring = kycScoring.Calculate(req, cheminRc, cheminCin, cheminPat, cheminRib, ocrResult);
+        var autoApprovalThreshold = await platformConfiguration.GetIntAsync(
+            PlatformConfigurationKeys.KycAutoApprovalThreshold, 80, ct);
+        var manualReviewThreshold = await platformConfiguration.GetIntAsync(
+            PlatformConfigurationKeys.KycManualReviewThreshold, 50, ct);
+        var scoring = kycScoring.Calculate(
+            req,
+            cheminRc,
+            cheminCin,
+            cheminPat,
+            cheminRib,
+            ocrResult,
+            autoApprovalThreshold,
+            manualReviewThreshold);
 
         var scoringPayload = new
         {
@@ -588,7 +596,7 @@ public sealed class DemandeAccesService(
     private static string FormatCorrection(string code, string? message)
     {
         var readableCode = Regex
-            .Replace(code.Replace('_', ' ').Replace('-', ' '), "([a-z])([A-Z])", "$1 $2")
+            .Replace(code.Replace('_', ' ').Replace('-', ' '), "([a-z])([A-Z])", "$1 $2", RegexOptions.None, RegexMatchPolicy.Timeout)
             .Trim();
         var title = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(readableCode);
         return string.IsNullOrWhiteSpace(message)

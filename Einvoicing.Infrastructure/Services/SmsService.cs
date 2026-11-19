@@ -11,6 +11,8 @@ using Microsoft.Extensions.Configuration;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 
+using Einvoicing.Domain;
+
 namespace Einvoicing.Infrastructure.Services;
 
 public sealed class SmsService(
@@ -55,10 +57,10 @@ public sealed class SmsService(
 
     private static string NormaliserNumeroTunisien(string telephone)
     {
-        var compact = Regex.Replace(telephone, @"[^0-9+]", string.Empty);
+        var compact = Regex.Replace(telephone, @"[^0-9+]", string.Empty, RegexOptions.None, RegexMatchPolicy.Timeout);
         if (compact.StartsWith("+")) return compact;
 
-        var digits = Regex.Replace(compact, @"\D", string.Empty);
+        var digits = Regex.Replace(compact, @"\D", string.Empty, RegexOptions.None, RegexMatchPolicy.Timeout);
         if (digits.StartsWith("216")) return $"+{digits}";
         if (digits.Length == 8) return $"+216{digits}";
 

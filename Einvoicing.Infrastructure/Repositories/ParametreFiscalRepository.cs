@@ -20,7 +20,7 @@ public sealed class ParametreFiscalRepository(ContextBaseDeDonnees db) : IParame
         => await db.ParametresFiscaux.AddAsync(parametre, ct);
 
     public void MettreAJour(ParametreFiscal parametre)
-        => db.ParametresFiscaux.Update(parametre);
+        => db.MarquerModifie(parametre);
 
     public void Supprimer(ParametreFiscal parametre)
         => db.ParametresFiscaux.Remove(parametre);

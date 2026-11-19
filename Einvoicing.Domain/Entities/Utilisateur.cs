@@ -149,6 +149,17 @@ public sealed class Utilisateur
         Statut = StatutCompte.EnAttente;
         ModifieLe = DateTime.UtcNow;
     }
+
+    public void ChangerRole(RoleUtilisateur role)
+    {
+        if (!Enum.IsDefined(role) || EstSupprime) throw new ValidationMetierException("Role ou compte invalide.");
+        var equipe = Role is RoleUtilisateur.SuperAdmin or RoleUtilisateur.Admin;
+        var nouvelleEquipe = role is RoleUtilisateur.SuperAdmin or RoleUtilisateur.Admin;
+        if (equipe != nouvelleEquipe)
+            throw new ValidationMetierException("Un changement entre equipe et entreprise exige un nouveau compte distinct.");
+        Role = role;
+        ModifieLe = DateTime.UtcNow;
+    }
     public void Supprimer()
     {
         EstSupprime = true;

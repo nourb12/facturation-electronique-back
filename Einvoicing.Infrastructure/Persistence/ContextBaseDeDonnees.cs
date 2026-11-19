@@ -12,6 +12,7 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
 {
     
     public DbSet<Utilisateur> Utilisateurs => Set<Utilisateur>();
+    public DbSet<InvitationUtilisateur> InvitationsUtilisateurs => Set<InvitationUtilisateur>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<OtpDemandeAcces> OtpDemandesAcces => Set<OtpDemandeAcces>();
@@ -55,11 +56,35 @@ public sealed class ContextBaseDeDonnees(DbContextOptions<ContextBaseDeDonnees> 
     public DbSet<BulletinPaie> BulletinsPaie => Set<BulletinPaie>();
     public DbSet<EvenementAudit> EvenementsAudit => Set<EvenementAudit>();
     public DbSet<AbonnementSaas> AbonnementsSaas => Set<AbonnementSaas>();
+    public DbSet<ParametrePlateforme> ParametresPlateforme => Set<ParametrePlateforme>();
+    public DbSet<HistoriqueParametrePlateforme> HistoriqueParametresPlateforme => Set<HistoriqueParametrePlateforme>();
+
+    /// <summary>
+    /// Les colonnes de dates sont en « timestamp with time zone » : Npgsql n'y accepte que des DateTime UTC.
+    /// Une date reçue avec un décalage horaire (désérialisée en heure locale) ou sans fuseau
+    /// (« 2026-12-17 ») provoquait une erreur 500 à l'enregistrement : on la normalise en UTC.
+    /// </summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>().HaveConversion<DateTimeUtcConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<DateTimeUtcNullableConverter>();
+    }
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
         mb.ApplyConfigurationsFromAssembly(typeof(ContextBaseDeDonnees).Assembly);
         base.OnModelCreating(mb);
+    }
+}
+
+internal sealed class InvitationUtilisateurConfiguration : IEntityTypeConfiguration<InvitationUtilisateur>
+{
+    public void Configure(EntityTypeBuilder<InvitationUtilisateur> b)
+    {
+        b.ToTable("InvitationsUtilisateurs"); b.HasKey(x => x.Id);
+        b.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        b.HasIndex(x => x.UtilisateurId);
+        b.HasOne<Utilisateur>().WithMany().HasForeignKey(x => x.UtilisateurId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -83,6 +108,36 @@ internal sealed class AbonnementSaasConfiguration : IEntityTypeConfiguration<Abo
         b.Property(x => x.Plan).HasMaxLength(80).IsRequired(); b.Property(x => x.Statut).HasMaxLength(20).IsRequired();
         b.Property(x => x.PrixMensuel).HasColumnType("numeric(15,3)");
         b.HasIndex(x => x.EntrepriseId).IsUnique(); b.HasIndex(x => new { x.Statut, x.ProchainRenouvellement });
+    }
+}
+
+internal sealed class ParametrePlateformeConfiguration : IEntityTypeConfiguration<ParametrePlateforme>
+{
+    public void Configure(EntityTypeBuilder<ParametrePlateforme> b)
+    {
+        b.ToTable("ParametresPlateforme"); b.HasKey(x => x.Id);
+        b.Property(x => x.Cle).HasMaxLength(100).IsRequired();
+        b.Property(x => x.ValeurJson).HasColumnType("text").IsRequired();
+        b.Property(x => x.TypeValeur).HasMaxLength(30).IsRequired();
+        b.Property(x => x.Description).HasMaxLength(500).IsRequired();
+        b.HasIndex(x => x.Cle).IsUnique();
+    }
+}
+
+internal sealed class HistoriqueParametrePlateformeConfiguration : IEntityTypeConfiguration<HistoriqueParametrePlateforme>
+{
+    public void Configure(EntityTypeBuilder<HistoriqueParametrePlateforme> b)
+    {
+        b.ToTable("HistoriqueParametresPlateforme");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Cle).HasMaxLength(100).IsRequired();
+        b.Property(x => x.AncienneValeur).HasColumnType("text").IsRequired();
+        b.Property(x => x.NouvelleValeur).HasColumnType("text").IsRequired();
+        b.Property(x => x.Action).HasMaxLength(30).IsRequired();
+        b.Property(x => x.Motif).HasMaxLength(500).IsRequired();
+        b.HasIndex(x => new { x.ParametreId, x.ModifieLe });
+        b.HasIndex(x => x.ModifiePar);
+        b.HasOne<ParametrePlateforme>().WithMany().HasForeignKey(x => x.ParametreId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -179,7 +234,7 @@ internal sealed class BulletinPaieConfiguration : IEntityTypeConfiguration<Bulle
     {
         b.ToTable("BulletinsPaie"); b.HasKey(x => x.Id);
         b.Property(x => x.Periode).HasMaxLength(7).IsRequired(); b.Property(x => x.Statut).HasMaxLength(30).IsRequired(); b.Property(x => x.ReferencePaiement).HasMaxLength(100);
-        b.Property(x => x.Brut).HasColumnType("numeric(15,3)"); b.Property(x => x.CnssSalarie).HasColumnType("numeric(15,3)"); b.Property(x => x.Irpp).HasColumnType("numeric(15,3)"); b.Property(x => x.Avances).HasColumnType("numeric(15,3)"); b.Property(x => x.NetAPayer).HasColumnType("numeric(15,3)");
+        b.Property(x => x.Brut).HasColumnType("numeric(15,3)"); b.Property(x => x.CnssSalarie).HasColumnType("numeric(15,3)"); b.Property(x => x.Irpp).HasColumnType("numeric(15,3)"); b.Property(x => x.Css).HasColumnType("numeric(15,3)").HasDefaultValue(0m); b.Property(x => x.Avances).HasColumnType("numeric(15,3)"); b.Property(x => x.NetAPayer).HasColumnType("numeric(15,3)");
         b.HasIndex(x => new { x.EntrepriseId, x.EmployeId, x.Periode }).IsUnique(); b.HasIndex(x => new { x.EntrepriseId, x.Periode });
     }
 }
@@ -445,6 +500,8 @@ internal sealed class FactureConfiguration : IEntityTypeConfiguration<Facture>
         b.Property(f => f.BaseRS).HasColumnType("numeric(15,3)");
         b.Property(f => f.MontantRS).HasColumnType("numeric(15,3)");
         b.Property(f => f.NetAPayer).HasColumnType("numeric(15,3)");
+        b.Property(f => f.RemiseGlobale).HasColumnType("numeric(15,3)").HasDefaultValue(0m);
+        b.Property(f => f.TimbreFiscal).HasColumnType("numeric(15,3)").HasDefaultValue(0m);
         b.Property(f => f.Notes).HasMaxLength(1000);
         b.Property(f => f.ConditionsPaiement).HasMaxLength(500);
         b.Property(f => f.XmlTeif).HasColumnType("text");
@@ -506,6 +563,8 @@ internal sealed class LigneFactureConfiguration : IEntityTypeConfiguration<Ligne
     public void Configure(EntityTypeBuilder<LigneFacture> b)
     {
         b.ToTable("LignesFacture"); b.HasKey(l => l.Id);
+        // Identifiant attribué par le domaine (Guid.NewGuid) : une ligne ajoutée à une facture suivie doit être insérée.
+        b.Property(l => l.Id).ValueGeneratedNever();
         b.Property(l => l.Designation).HasMaxLength(200).IsRequired();
         b.Property(l => l.Description).HasMaxLength(1000);
         b.Property(l => l.Unite).HasMaxLength(20).IsRequired();
@@ -526,6 +585,8 @@ internal sealed class HistoriqueFactureConfiguration : IEntityTypeConfiguration<
     public void Configure(EntityTypeBuilder<HistoriqueFacture> b)
     {
         b.ToTable("HistoriqueFactures"); b.HasKey(h => h.Id);
+        // Identifiant attribué par le domaine : un événement ajouté à l'historique doit être inséré, jamais mis à jour.
+        b.Property(h => h.Id).ValueGeneratedNever();
         b.Property(h => h.Action).HasMaxLength(100).IsRequired();
         b.Property(h => h.Details).HasMaxLength(2000).IsRequired();
         b.Property(h => h.AncienneValeur).HasMaxLength(500);
@@ -612,6 +673,9 @@ internal sealed class ScannedDocumentConfiguration : IEntityTypeConfiguration<Sc
     public void Configure(EntityTypeBuilder<ScannedDocument> b)
     {
         b.ToTable("ScannedDocuments"); b.HasKey(x => x.Id);
+        // Existing columns also protect simultaneous mobile submissions.
+        b.Property(x => x.TransactionId).IsConcurrencyToken();
+        b.Property(x => x.Status).IsConcurrencyToken();
         b.Property(x => x.DocumentType).HasMaxLength(60).IsRequired();
         b.Property(x => x.Source).HasConversion<string>().HasMaxLength(30).IsRequired();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
@@ -706,4 +770,23 @@ internal sealed class CalendrierTaskConfiguration : IEntityTypeConfiguration<Cal
         b.HasIndex(t => t.EntrepriseId);
         b.HasIndex(t => new { t.EntrepriseId, t.Date });
     }
+}
+
+internal sealed class DateTimeUtcConverter() : ValueConverter<DateTime, DateTime>(
+    v => DateTimeUtc.VersUtc(v),
+    v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+internal sealed class DateTimeUtcNullableConverter() : ValueConverter<DateTime?, DateTime?>(
+    v => v.HasValue ? DateTimeUtc.VersUtc(v.Value) : v,
+    v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+internal static class DateTimeUtc
+{
+    /// <summary>Heure locale convertie en UTC ; date sans fuseau considérée comme déjà en UTC.</summary>
+    public static DateTime VersUtc(DateTime v) => v.Kind switch
+    {
+        DateTimeKind.Utc => v,
+        DateTimeKind.Local => v.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+    };
 }

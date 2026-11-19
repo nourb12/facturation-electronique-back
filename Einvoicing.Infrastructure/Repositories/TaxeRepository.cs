@@ -20,7 +20,7 @@ public sealed class TaxeRepository(ContextBaseDeDonnees db) : ITaxeRepository
         => await db.Taxes.AddAsync(taxe, ct);
 
     public void MettreAJour(Taxe taxe)
-        => db.Taxes.Update(taxe);
+        => db.MarquerModifie(taxe);
 
     public void Supprimer(Taxe taxe)
         => db.Taxes.Remove(taxe);

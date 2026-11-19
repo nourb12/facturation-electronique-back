@@ -12,7 +12,7 @@ namespace Einvoicing.Api.Controllers;
 [Route("api/paie")]
 [Authorize]
 [Produces("application/json")]
-public sealed class PaieController(ContextBaseDeDonnees db, ICurrentUserService currentUser) : ControllerBase
+public sealed class PaieController(ContextBaseDeDonnees db, ICurrentUserService currentUser, IConfiguration configuration) : ControllerBase
 {
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard([FromQuery] string? periode, CancellationToken ct)
@@ -32,7 +32,8 @@ public sealed class PaieController(ContextBaseDeDonnees db, ICurrentUserService 
         if (entrepriseId is null) return NotFound();
         if (await db.EmployesPaie.AnyAsync(e => e.EntrepriseId == entrepriseId && e.Matricule == request.Matricule.Trim(), ct))
             return Conflict(new { message = "Ce matricule existe déjà." });
-        var employe = EmployePaie.Creer(entrepriseId.Value, request.Matricule, request.Nom, request.Poste, request.Departement, request.SalaireBase, request.Prime, request.Avantage, request.Cin, request.Cnss, request.Rib);
+        var employe = EmployePaie.Creer(entrepriseId.Value, request.Matricule, request.Nom, request.Poste, request.Departement, request.SalaireBase, request.Prime, request.Avantage, request.Cin, request.Cnss, request.Rib,
+            new SituationFamiliale(request.ChefDeFamille, request.EnfantsACharge, request.EnfantsEtudiants, request.EnfantsHandicapes));
         db.EmployesPaie.Add(employe); await db.SaveChangesAsync(ct);
         return Created($"/api/paie/employes/{employe.Id}", ToDto(employe));
     }
@@ -44,7 +45,7 @@ public sealed class PaieController(ContextBaseDeDonnees db, ICurrentUserService 
         if (entrepriseId is null) return NotFound();
         var employes = await db.EmployesPaie.Where(e => e.EntrepriseId == entrepriseId && e.EstActif).ToListAsync(ct);
         var existing = await db.BulletinsPaie.Where(f => f.EntrepriseId == entrepriseId && f.Periode == request.Periode).Select(f => f.EmployeId).ToListAsync(ct);
-        var fiches = employes.Where(e => !existing.Contains(e.Id)).Select(e => BulletinPaie.Generer(e, request.Periode)).ToList();
+        var fiches = employes.Where(e => !existing.Contains(e.Id)).Select(e => BulletinPaie.Generer(e, request.Periode, TauxCss())).ToList();
         if (fiches.Count > 0) { db.BulletinsPaie.AddRange(fiches); await db.SaveChangesAsync(ct); }
         return Ok(new { generees = fiches.Count, fiches = fiches.Select(ToDto) });
     }
@@ -72,17 +73,24 @@ public sealed class PaieController(ContextBaseDeDonnees db, ICurrentUserService 
         var entrepriseId = await EntrepriseIdAsync(ct);
         return await db.BulletinsPaie.SingleOrDefaultAsync(f => f.Id == id && f.EntrepriseId == entrepriseId, ct);
     }
-    private async Task<Guid?> EntrepriseIdAsync(CancellationToken ct) => currentUser.EntrepriseId ?? await db.Entreprises.Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
-    private static object ToDto(EmployePaie e) => new { id = e.Id, matricule = e.Matricule, nom = e.Nom, poste = e.Poste, departement = e.Departement, cin = e.Cin, cnss = e.NumeroCnss, rib = e.Rib, salaireBase = e.SalaireBase, prime = e.PrimeMensuelle, avantage = e.AvantageMensuel, actif = e.EstActif };
-    private static object ToDto(BulletinPaie f) => new { id = f.Id, employeId = f.EmployeId, periode = f.Periode, statut = f.Statut.Replace("é", "e"), brut = f.Brut, cnssSalarie = f.CnssSalarie, irpp = f.Irpp, avances = f.Avances, net = f.NetAPayer, datePaiement = f.DatePaiement };
+    private Task<Guid?> EntrepriseIdAsync(CancellationToken ct) => Task.FromResult(currentUser.EntrepriseId);
+
+    /// <summary>Taux de CSS paramétrable (Paie:TauxCss, ex. 0.005) ; à défaut, le taux légal par défaut.</summary>
+    private decimal TauxCss()
+        => decimal.TryParse(configuration["Paie:TauxCss"], System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var taux) ? taux : BaremeIrpp.TauxCssParDefaut;
+    private static object ToDto(EmployePaie e) => new { id = e.Id, matricule = e.Matricule, nom = e.Nom, poste = e.Poste, departement = e.Departement, cin = e.Cin, cnss = e.NumeroCnss, rib = e.Rib, salaireBase = e.SalaireBase, prime = e.PrimeMensuelle, avantage = e.AvantageMensuel, actif = e.EstActif, chefDeFamille = e.ChefDeFamille, enfantsACharge = e.EnfantsACharge, enfantsEtudiants = e.EnfantsEtudiants, enfantsHandicapes = e.EnfantsHandicapes };
+    private static object ToDto(BulletinPaie f) => new { id = f.Id, employeId = f.EmployeId, periode = f.Periode, statut = f.Statut.Replace("é", "e"), brut = f.Brut, cnssSalarie = f.CnssSalarie, irpp = f.Irpp, css = f.Css, avances = f.Avances, net = f.NetAPayer, datePaiement = f.DatePaiement };
     private static object[] Declarations(IReadOnlyList<BulletinPaie> fiches) =>
     [
         new { code = "CNSS", montant = fiches.Sum(f => f.CnssSalarie), statut = "À déclarer" },
         new { code = "IRPP", montant = fiches.Sum(f => f.Irpp), statut = "À déclarer" },
+        new { code = "CSS", montant = fiches.Sum(f => f.Css), statut = "À déclarer" },
         new { code = "PAY", montant = fiches.Sum(f => f.NetAPayer), statut = "Paiement" }
     ];
 }
 
-public sealed record CreerEmployeRequest(string Matricule, string Nom, string Poste, string Departement, decimal SalaireBase, decimal Prime, decimal Avantage, string? Cin, string? Cnss, string? Rib);
+public sealed record CreerEmployeRequest(string Matricule, string Nom, string Poste, string Departement, decimal SalaireBase, decimal Prime, decimal Avantage, string? Cin, string? Cnss, string? Rib,
+    bool ChefDeFamille = false, int EnfantsACharge = 0, int EnfantsEtudiants = 0, int EnfantsHandicapes = 0);
 public sealed record GenererFichesRequest(string Periode);
 public sealed record PayerFicheRequest(DateTime? DatePaiement, string? Reference);

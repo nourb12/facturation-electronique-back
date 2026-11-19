@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Einvoicing.Domain.Entities;
+using Einvoicing.Domain.Enums;
+using QRCoder;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -29,6 +31,7 @@ internal static class FacturePdfBuilder
         QuestPDF.Settings.License = LicenseType.Community;
         var culture = CultureInfo.GetCultureInfo("fr-TN");
         var settings = BuildSettings(entreprise, personnalisationJson);
+        var trackingQr = facture.TypeFacture == TypeFacture.Facture ? BuildTrackingQr(facture.Numero) : null;
 
         var document = Document.Create(container =>
         {
@@ -43,7 +46,7 @@ internal static class FacturePdfBuilder
                 {
                     col.Spacing(14);
                     col.Item().Element(c => ComposeHeader(c, facture, entreprise, settings));
-                    col.Item().Element(c => ComposeParties(c, client, entreprise));
+                    col.Item().Element(c => ComposeParties(c, client, entreprise, trackingQr));
                     col.Item().Element(c => ComposeDates(c, facture));
                     col.Item().Element(c => ComposeTable(c, facture, culture, settings));
                     col.Item().AlignRight().Element(c => ComposeTotals(c, facture, culture, settings));
@@ -132,14 +135,14 @@ internal static class FacturePdfBuilder
                 left.RelativeItem().PaddingLeft(10).Column(col =>
                 {
                     col.Item().Text(entreprise.Nom).FontSize(14).SemiBold();
-                    col.Item().Text("Portail de facturation electronique certifiee")
+                    col.Item().Text("Portail de facturation TuniFlow")
                         .FontSize(9).FontColor(Colors.Grey.Darken2);
                 });
             });
 
             row.ConstantItem(200).AlignRight().Column(col =>
             {
-                col.Item().AlignRight().Text($"{facture.TypeFacture.ToString().ToUpperInvariant()} N? {facture.Numero}")
+                col.Item().AlignRight().Text($"{facture.TypeFacture.ToString().ToUpperInvariant()} N° {facture.Numero}")
                     .FontSize(14).SemiBold();
                 col.Item().AlignRight().Text(facture.Statut.ToString())
                     .FontSize(9).FontColor(Colors.Grey.Darken2);
@@ -147,10 +150,28 @@ internal static class FacturePdfBuilder
         });
     }
 
-    private static void ComposeParties(IContainer container, Client client, Entreprise entreprise)
+    private static byte[] BuildTrackingQr(string invoiceNumber)
+    {
+        using var data = QRCodeGenerator.GenerateQrCode($"TuniFlow - Facture {invoiceNumber}", QRCodeGenerator.ECCLevel.M);
+        using var qr = new PngByteQRCode(data);
+        return qr.GetGraphic(8, drawQuietZones: true);
+    }
+
+    private static void ComposeParties(IContainer container, Client client, Entreprise entreprise, byte[]? trackingQr)
     {
         container.Row(row =>
         {
+            if (trackingQr is not null)
+            {
+                row.ConstantItem(88).Column(col =>
+                {
+                    col.Item().AlignCenter().Width(80).Height(80).Image(trackingQr).FitArea();
+                    col.Item().AlignCenter().Text("QR interne TuniFlow").FontSize(8).SemiBold();
+                    col.Item().AlignCenter().Text("Hors validation TTN").FontSize(7).FontColor(Colors.Grey.Darken2);
+                });
+                row.ConstantItem(12);
+            }
+
             row.RelativeItem().Element(c => PartyBox(
                 c,
                 "Emetteur",
@@ -272,9 +293,17 @@ internal static class FacturePdfBuilder
     {
         container.Width(220).Column(col =>
         {
+            if (facture.RemiseGlobale > 0)
+            {
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Text("Remise globale");
+                    row.ConstantItem(110).AlignRight().Text($"- {Money(facture.RemiseGlobale, facture.Devise, culture)}");
+                });
+            }
             col.Item().Row(row =>
             {
-                row.RelativeItem().Text("Total HT");
+                row.RelativeItem().Text(facture.RemiseGlobale > 0 ? "Total HT net" : "Total HT");
                 row.ConstantItem(110).AlignRight().Text(Money(facture.TotalHt, facture.Devise, culture));
             });
             col.Item().Row(row =>
@@ -287,6 +316,14 @@ internal static class FacturePdfBuilder
                 row.RelativeItem().Text("Total TTC");
                 row.ConstantItem(110).AlignRight().Text(Money(facture.TotalTtc, facture.Devise, culture));
             });
+            if (facture.TimbreFiscal > 0)
+            {
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Text("Timbre fiscal");
+                    row.ConstantItem(110).AlignRight().Text(Money(facture.TimbreFiscal, facture.Devise, culture));
+                });
+            }
             if (facture.AppliquerRS && facture.MontantRS > 0)
             {
                 col.Item().Row(row =>
@@ -297,7 +334,7 @@ internal static class FacturePdfBuilder
             }
             col.Item().Background(settings.AccentColor).Padding(6).Row(row =>
             {
-                row.RelativeItem().Text(facture.AppliquerRS ? "Net a payer" : "Total TTC").FontColor(Colors.White).SemiBold();
+                row.RelativeItem().Text("Net a payer").FontColor(Colors.White).SemiBold();
                 row.ConstantItem(110).AlignRight()
                     .Text(Money(facture.NetAPayer, facture.Devise, culture))
                     .FontColor(Colors.White).SemiBold();

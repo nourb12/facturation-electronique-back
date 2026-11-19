@@ -6,6 +6,8 @@ using Einvoicing.Application.Interfaces;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Exceptions;
 
+using Einvoicing.Domain;
+
 namespace Einvoicing.Application.Services;
 
 public sealed class OtpDemandeAccesService(
@@ -52,7 +54,7 @@ public sealed class OtpDemandeAccesService(
         var otp = await repository.ObtenirAsync(request.VerificationId, ct)
             ?? throw new ValidationMetierException("Verification OTP introuvable.");
         if (!otp.EstValide()) throw new ValidationMetierException("Le code a expire ou le nombre d'essais est depasse.");
-        if (request.Canal != otp.Canal || !Regex.IsMatch(request.Code ?? string.Empty, "^\\d{6}$"))
+        if (request.Canal != otp.Canal || !Regex.IsMatch(request.Code ?? string.Empty, "^\\d{6}$", RegexOptions.None, RegexMatchPolicy.Timeout))
             throw new ValidationMetierException("Le code OTP est invalide.");
 
         var expected = otp.EmailCodeHash;

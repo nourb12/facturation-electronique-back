@@ -95,7 +95,7 @@ public sealed class TransactionRepository(ContextBaseDeDonnees db) : ITransactio
         => await db.Transactions.AddAsync(transaction, ct);
 
     public void MettreAJour(Transaction transaction)
-        => db.Transactions.Update(transaction);
+        => db.MarquerModifie(transaction);
 
     public void Supprimer(Transaction transaction)
         => db.Transactions.Remove(transaction);

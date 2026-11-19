@@ -14,7 +14,7 @@ public sealed class RefreshTokenRepository(ContextBaseDeDonnees db) : IRefreshTo
         => await db.RefreshTokens.AddAsync(rt, ct);
 
     public void MettreAJour(RefreshToken rt)
-        => db.RefreshTokens.Update(rt);
+        => db.MarquerModifie(rt);
 
     public async Task RevoquerTousAsync(Guid utilisateurId, CancellationToken ct = default)
     {

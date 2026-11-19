@@ -2,6 +2,7 @@ using Einvoicing.Api.Middleware;
 using Einvoicing.Application.Interfaces;
 using Einvoicing.Application.Services;
 using Einvoicing.Application.Options;
+using Einvoicing.Application.Configuration;
 using Einvoicing.Api.Services;
 using Einvoicing.Infrastructure.Persistence;
 using Einvoicing.Infrastructure.Repositories;
@@ -11,14 +12,27 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.FileProviders;
 using Prometheus;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("access-requests", limiter =>
+    {
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+});
 
 builder.Services.AddDbContext<ContextBaseDeDonnees>(opts =>
     opts.UseNpgsql(
@@ -28,6 +42,8 @@ builder.Services.AddDbContext<ContextBaseDeDonnees>(opts =>
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var secret = jwtSection["Secret"];
+var jwtIssuer = string.IsNullOrWhiteSpace(jwtSection["Issuer"]) ? "Einvoicing.Api" : jwtSection["Issuer"]!;
+var jwtAudience = string.IsNullOrWhiteSpace(jwtSection["Audience"]) ? "Einvoicing.Frontend" : jwtSection["Audience"]!;
 if (string.IsNullOrWhiteSpace(secret) || secret.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase) || secret.Length < 32)
 {
     throw new InvalidOperationException("Jwt:Secret doit etre configure via appsettings.Development.json, variable d'environnement ou secret manager.");
@@ -46,14 +62,15 @@ builder.Services
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
             ValidateIssuer = true,
-            ValidIssuer = jwtSection["Issuer"],
+            ValidIssuer = jwtIssuer,
             ValidateAudience = true,
-            ValidAudience = jwtSection["Audience"],
+            ValidAudience = jwtAudience,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
         opts.Events = new JwtBearerEvents
         {
+            OnTokenValidated = ActiveSessionValidation.Valider,
             OnAuthenticationFailed = ctx =>
             {
                 if (ctx.Exception is SecurityTokenExpiredException)
@@ -64,27 +81,13 @@ builder.Services
     });
 
 
-var authenticatedByDefault = new AuthorizationPolicyBuilder()
-    .RequireAuthenticatedUser()
-    .Build();
-
-builder.Services.AddAuthorization(options =>
-{
-    // Toute route non explicitement publique exige un utilisateur authentifie, meme en developpement.
-    options.DefaultPolicy = authenticatedByDefault;
-    options.FallbackPolicy = authenticatedByDefault;
-    options.AddPolicy("SuperAdmin", p => p.RequireRole("SuperAdmin"));
-    options.AddPolicy("Admin", p => p.RequireRole("SuperAdmin", "Admin"));
-    options.AddPolicy("SuperOuAdmin", p => p.RequireRole("SuperAdmin", "Admin"));
-    options.AddPolicy("ResponsableOuAdmin", p => p.RequireRole("SuperAdmin", "Admin", "ResponsableEntreprise"));
-    options.AddPolicy("Tous", p => p.RequireRole("SuperAdmin", "Admin", "ResponsableEntreprise", "ResponsableFinancier"));
-});
+builder.Services.AddTuniFlowAuthorization();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDemandeAccesService, DemandeAccesService>();
-builder.Services.AddScoped<IOtpDemandeAccesService, OtpDemandeAccesService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<KycScoringService>();
+builder.Services.AddScoped<IPlatformConfigurationService, PlatformConfigurationService>();
 builder.Services.AddScoped<ILatePaymentPredictionService, LatePaymentPredictionService>();
 builder.Services.AddScoped<ICashForecastService, CashForecastService>();
 builder.Services.AddScoped<ITransactionAnomalyService, TransactionAnomalyService>();
@@ -112,6 +115,16 @@ builder.Services.AddHttpClient("Ollama", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://127.0.0.1:11434/");
     client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddHttpClient("OllamaRag", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://127.0.0.1:11434/");
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Rag:GenerationTimeoutSeconds", 2));
+});
+builder.Services.AddHttpClient("OllamaEmbeddings", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://127.0.0.1:11434/");
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Rag:EmbeddingTimeoutSeconds", 3));
 });
 builder.Services.AddHttpClient("Sms", client => client.Timeout = TimeSpan.FromSeconds(15));
 
@@ -185,7 +198,8 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opts =>
 {
@@ -249,6 +263,14 @@ using (var scope = app.Services.CreateScope())
     await DataSeeder.SeedAsync(services);
 }
 
+// Génération de l'historique de démonstration : dotnet run -- --generer-demo
+if (args.Contains("--generer-demo", StringComparer.OrdinalIgnoreCase))
+{
+    using var demoScope = app.Services.CreateScope();
+    await Einvoicing.Api.DemoData.DemoEntrepriseGenerator.ExecuterAsync(demoScope.ServiceProvider, app.Environment, app.Logger);
+    return;
+}
+
 
 // Dev only: auto-start local OCR microservice if missing.
 await OcrServiceDevLauncher.EnsureRunningAsync(app.Configuration, app.Environment, app.Logger, app.Lifetime.ApplicationStopping);
@@ -267,8 +289,9 @@ else if (!Path.IsPathRooted(uploadsRoot))
     uploadsRoot = Path.Combine(app.Environment.ContentRootPath, uploadsRoot);
 }
 Directory.CreateDirectory(uploadsRoot);
-// Les pieces KYC ne doivent jamais etre accessibles comme fichiers publics.
-app.UseWhen(context => context.Request.Path.StartsWithSegments("/uploads/kyc", StringComparison.OrdinalIgnoreCase), branch =>
+// KYC and knowledge sources are private; the chatbot only exposes authorized excerpts.
+app.UseWhen(context => context.Request.Path.StartsWithSegments("/uploads/kyc", StringComparison.OrdinalIgnoreCase)
+    || context.Request.Path.StartsWithSegments("/uploads/knowledge-base", StringComparison.OrdinalIgnoreCase), branch =>
     branch.Run(context =>
     {
         context.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -296,7 +319,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
+app.UseMiddleware<SupportReadOnlyMiddleware>();
+app.UseMiddleware<CollaborateurVentesAccessMiddleware>();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseMiddleware<AuditTrailMiddleware>();
 app.MapMetrics().AllowAnonymous();
 app.MapGet("/health", async (ContextBaseDeDonnees db) =>

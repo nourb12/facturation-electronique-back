@@ -21,6 +21,36 @@ public sealed class AdminOverviewController(
     IEmailService emailService
 ) : ControllerBase
 {
+    [HttpGet("utilisateurs")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<IActionResult> Utilisateurs(CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var items = await db.Utilisateurs.AsNoTracking()
+            .OrderBy(u => u.Nom).ThenBy(u => u.Prenom)
+            .Select(u => new
+            {
+                id = u.Id,
+                nom = u.Nom,
+                prenom = u.Prenom,
+                email = u.Email,
+                role = u.Role.ToString(),
+                statut = u.Statut.ToString(),
+                entrepriseId = u.EntrepriseId,
+                deuxFAActif = u.DeuxFAActif,
+                creeLe = u.CreeLe,
+                derniereConnexion = u.DerniereConnexion,
+                estSupprime = u.EstSupprime,
+                invitationEnAttente = db.InvitationsUtilisateurs.Any(i => i.UtilisateurId == u.Id && i.AccepteeLe == null),
+                invitationExpireLe = db.InvitationsUtilisateurs.Where(i => i.UtilisateurId == u.Id && i.AccepteeLe == null).OrderByDescending(i => i.CreeLe).Select(i => (DateTime?)i.ExpireLe).FirstOrDefault(),
+                sessionsActives = db.Sessions.Count(s => s.UtilisateurId == u.Id && db.RefreshTokens.Any(r => r.Token == s.RefreshTokenRef && !r.EstRevoque && !r.EstUtilise && r.ExpireLe > now)),
+                entrepriseNom = db.Entreprises.Where(e => e.Id == u.EntrepriseId)
+                    .Select(e => e.Nom).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+        return Ok(items);
+    }
+
     [HttpGet("entreprises")]
     public async Task<IActionResult> Entreprises(CancellationToken ct)
     {

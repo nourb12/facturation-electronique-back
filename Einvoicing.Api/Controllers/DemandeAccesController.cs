@@ -3,6 +3,7 @@ using Einvoicing.Application.Interfaces;
 using Einvoicing.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Einvoicing.Api.Controllers;
 
@@ -15,23 +16,13 @@ namespace Einvoicing.Api.Controllers;
 [Produces("application/json")]
 public sealed class DemandeAccesController(
     IDemandeAccesService demandeService,
-    IOtpDemandeAccesService otpService,
     ICurrentUserService currentUser
 ) : ControllerBase
 {
-    [HttpPost("demande-acces/otp/envoyer")]
-    [AllowAnonymous]
-    public async Task<IActionResult> EnvoyerOtp([FromBody] EnvoyerOtpDemandeAccesRequest request, CancellationToken ct)
-        => Ok(await otpService.EnvoyerAsync(request, ct));
-
-    [HttpPost("demande-acces/otp/verifier")]
-    [AllowAnonymous]
-    public async Task<IActionResult> VerifierOtp([FromBody] VerifierOtpDemandeAccesRequest request, CancellationToken ct)
-        => Ok(await otpService.VerifierAsync(request, ct));
-
     // —— Écran 1 — Soumission de la demande d'accès —————————————
     [HttpPost("demande-acces")]
     [AllowAnonymous]
+    [EnableRateLimiting("access-requests")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(DemandeAccesConfirmationDto), 200)]
     public async Task<IActionResult> SoumettreDemandeAcces(

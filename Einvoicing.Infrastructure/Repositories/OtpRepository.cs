@@ -22,7 +22,7 @@ public sealed class OtpRepository(ContextBaseDeDonnees db) : IOtpRepository
         => await db.OtpCodes.AddAsync(otp, ct);
 
     public void MettreAJour(OtpCode otp)
-        => db.OtpCodes.Update(otp);
+        => db.MarquerModifie(otp);
 
     public async Task InvaliderTousAsync(
         Guid utilisateurId, OtpType type, CancellationToken ct = default)

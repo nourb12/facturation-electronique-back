@@ -7,6 +7,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 
 EXPOSE 8080
 
-COPY publish-local/ ./
+COPY .docker/backend-publish/ ./
+RUN test -s Einvoicing.Api.dll && test -s Einvoicing.Api.runtimeconfig.json && test -s build-manifest.json
 
 ENTRYPOINT ["dotnet", "Einvoicing.Api.dll"]

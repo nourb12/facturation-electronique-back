@@ -34,7 +34,7 @@ public sealed class FournisseurRepository(ContextBaseDeDonnees db) : IFournisseu
         => db.Fournisseurs.AddAsync(fournisseur, ct).AsTask();
 
     public void MettreAJour(Fournisseur fournisseur)
-        => db.Fournisseurs.Update(fournisseur);
+        => db.MarquerModifie(fournisseur);
 
     public Task SauvegarderAsync(CancellationToken ct = default)
         => db.SaveChangesAsync(ct);

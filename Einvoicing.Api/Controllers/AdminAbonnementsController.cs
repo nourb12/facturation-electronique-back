@@ -18,6 +18,9 @@ public sealed class AdminAbonnementsController(ContextBaseDeDonnees db, IEmailSe
     [HttpGet]
     public async Task<IActionResult> Lister(CancellationToken ct)
     {
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var nextMonth = monthStart.AddMonths(1);
         var rows = await db.AbonnementsSaas
             .Join(db.Entreprises, a => a.EntrepriseId, e => e.Id, (a, e) => new { a, e })
             .Select(x => new
@@ -26,7 +29,7 @@ public sealed class AdminAbonnementsController(ContextBaseDeDonnees db, IEmailSe
                 prixMensuel = x.a.PrixMensuel, prochainRenouvellement = x.a.ProchainRenouvellement,
                 limiteUtilisateurs = x.a.LimiteUtilisateurs, limiteFactures = x.a.LimiteFacturesMensuelles,
                 utilisateurs = db.Utilisateurs.Count(u => u.EntrepriseId == x.e.Id),
-                factures = db.Factures.Count(f => f.EntrepriseId == x.e.Id)
+                factures = db.Factures.Count(f => f.EntrepriseId == x.e.Id && f.DateEmission >= monthStart && f.DateEmission < nextMonth)
             })
             .OrderBy(x => x.entreprise)
             .ToListAsync(ct);

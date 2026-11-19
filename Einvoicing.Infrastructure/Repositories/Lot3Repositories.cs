@@ -62,7 +62,7 @@ public sealed class SignatureRepository(ContextBaseDeDonnees db) : ISignatureRep
         => await db.Signatures.AddAsync(sig, ct);
 
     public void MettreAJour(SignatureRequest sig)
-        => db.Signatures.Update(sig);
+        => db.MarquerModifie(sig);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);
@@ -96,7 +96,7 @@ public sealed class EchangeRepository(ContextBaseDeDonnees db) : IEchangeReposit
         => await db.Echanges.AddAsync(echange, ct);
 
     public void MettreAJour(ExternalExchange echange)
-        => db.Echanges.Update(echange);
+        => db.MarquerModifie(echange);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

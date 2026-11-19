@@ -58,9 +58,10 @@ public sealed class DashboardService(
         );
 
         
+        // Une facture payée a forcément passé le contrôle TEIF et l'acceptation TTN.
         var total = stats.TotalValidees + stats.TotalTransmises
-                     + stats.TotalAcceptees + stats.TotalRejetees;
-        var conformes = stats.TotalTransmises + stats.TotalAcceptees;
+                     + stats.TotalAcceptees + stats.TotalRejetees + stats.TotalPayees;
+        var conformes = stats.TotalTransmises + stats.TotalAcceptees + stats.TotalPayees;
         double tauxConformite = total > 0
             ? Math.Round((double)conformes / total * 100, 1)
             : 100;

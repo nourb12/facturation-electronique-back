@@ -2,6 +2,7 @@ using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Einvoicing.Infrastructure.Services;
 
 namespace Einvoicing.Api.Controllers;
 
@@ -11,7 +12,9 @@ namespace Einvoicing.Api.Controllers;
 [Authorize]
 public sealed class KnowledgeBaseController(
     IKnowledgeBaseService knowledgeBase,
-    ICurrentUserService currentUser) : ControllerBase
+    ICurrentUserService currentUser,
+    IConfiguration configuration,
+    IWebHostEnvironment environment) : ControllerBase
 {
     public sealed record ImportKnowledgeDocumentRequest(
         IFormFile File,
@@ -21,12 +24,53 @@ public sealed class KnowledgeBaseController(
         DateTime? PublishedAt);
 
     public sealed record UpdateKnowledgeDocumentStatusRequest(string Status);
+    public sealed record UpdateKnowledgeDocumentContentRequest(string Content);
+    public sealed record ReindexKnowledgeRequest(bool ResetIndex = false);
+    public sealed record AssistantFeedbackRequest(string Question,bool Found,bool Helpful);
+
+    [HttpPost("feedback")]
+    [Authorize(Policy = "RagUser")]
+    public async Task<IActionResult> Feedback([FromBody] AssistantFeedbackRequest request,CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(request.Question)||request.Question.Length>1500)return BadRequest();
+        await new KnowledgeFeedbackStore(configuration,environment).RecordAsync(request.Question,request.Found,request.Helpful,ct);
+        return NoContent();
+    }
+
+    [HttpPost("reindex")]
+    [Authorize(Policy = "SuperOuAdmin")]
+    public async Task<IActionResult> Reindex([FromBody] ReindexKnowledgeRequest request, CancellationToken ct)
+    {
+        try { return Ok(new { chunks = await knowledgeBase.ReindexAsync(request.ResetIndex,ct) }); }
+        catch (InvalidOperationException e) { return Problem(title:e.Message,statusCode:StatusCodes.Status503ServiceUnavailable); }
+    }
 
     [HttpGet]
     [Authorize(Policy = "SuperOuAdmin")]
     [ProducesResponseType(typeof(IReadOnlyList<KnowledgeDocumentDto>), StatusCodes.Status200OK)]
     public Task<IReadOnlyList<KnowledgeDocumentDto>> List(CancellationToken ct)
         => knowledgeBase.ListAsync(ct);
+
+    [HttpGet("{id:guid}/content")]
+    [Authorize(Policy = "SuperOuAdmin")]
+    [ProducesResponseType(typeof(KnowledgeDocumentContentDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetContent(Guid id, CancellationToken ct)
+    {
+        try { return Ok(await knowledgeBase.GetContentAsync(id, ct)); }
+        catch (KeyNotFoundException) { return NotFound(); }
+    }
+
+    [HttpPut("{id:guid}/content")]
+    [Authorize(Policy = "SuperOuAdmin")]
+    [ProducesResponseType(typeof(KnowledgeDocumentContentDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpdateContent(Guid id, [FromBody] UpdateKnowledgeDocumentContentRequest request, CancellationToken ct)
+    {
+        if (currentUser.UtilisateurId is not Guid userId)
+            return Problem(title: "Utilisateur invalide", statusCode: StatusCodes.Status401Unauthorized);
+        try { return Ok(await knowledgeBase.UpdateContentAsync(id, request.Content, userId, ct)); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (ArgumentException exception) { return BadRequest(new { message = exception.Message }); }
+    }
 
     [HttpPost("import")]
     [Authorize(Policy = "SuperOuAdmin")]
@@ -94,18 +138,31 @@ public sealed class KnowledgeBaseController(
     }
 
     [HttpGet("search")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "RagUser")]
     [ProducesResponseType(typeof(IReadOnlyList<KnowledgeSearchResultDto>), StatusCodes.Status200OK)]
-    public Task<IReadOnlyList<KnowledgeSearchResultDto>> Search([FromQuery] string query, [FromQuery] int take = 5, CancellationToken ct = default)
-        => knowledgeBase.SearchAsync(query, take, ct);
+    public async Task<IActionResult> Search([FromQuery] string query, [FromQuery] int take = 5, CancellationToken ct = default)
+    {
+        try { return Ok(await knowledgeBase.SearchAsync(query,take,ct)); }
+        catch (ArgumentException e) { return BadRequest(new {message=e.Message}); }
+        catch (InvalidOperationException e) { return Problem(title:e.Message,statusCode:503); }
+    }
 
     [HttpPost("ask")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "RagUser")]
     [ProducesResponseType(typeof(AssistantAnswerDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> Ask([FromBody] AssistantQuestionDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Question))
             return BadRequest(new { message = "Saisissez votre question." });
-        return Ok(await knowledgeBase.AskAsync(request.Question, ct));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var timeoutSeconds = Math.Clamp(configuration.GetValue("Rag:RequestTimeoutSeconds", 40), 5, 90);
+        deadline.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        try { return Ok(await knowledgeBase.AskAsync(request, deadline.Token)); }
+        catch (ArgumentException e) { return BadRequest(new {message=e.Message}); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return StatusCode(StatusCodes.Status504GatewayTimeout, new { message = "La demande a dépassé le délai prévu." });
+        }
+        catch (InvalidOperationException e) { return Problem(title:e.Message,statusCode:503); }
     }
 }

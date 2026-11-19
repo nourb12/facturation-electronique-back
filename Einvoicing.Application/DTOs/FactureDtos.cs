@@ -19,7 +19,9 @@ public record CreerFactureRequest(
     bool AppliquerRS = false,
     string? CodeRS = null,
     decimal TauxRS = 0,
-    Guid? FactureOrigineId = null
+    Guid? FactureOrigineId = null,
+    decimal RemiseGlobale = 0,
+    bool AppliquerTimbre = true
 );
 
 public record CreerLigneFactureRequest(
@@ -42,7 +44,9 @@ public record MettreAJourFactureRequest(
     List<CreerLigneFactureRequest> Lignes,
     bool AppliquerRS = false,
     string? CodeRS = null,
-    decimal TauxRS = 0
+    decimal TauxRS = 0,
+    decimal RemiseGlobale = 0,
+    bool AppliquerTimbre = true
 );
 
 public record ValiderFactureRequest(string? Commentaire);
@@ -108,7 +112,9 @@ public record FactureDto(
     List<LigneFactureDto> Lignes,
     List<HistoriqueFactureDto> Historique,
     DateTime CreeLe,
-    DateTime ModifieLe
+    DateTime ModifieLe,
+    decimal RemiseGlobale = 0,
+    decimal TimbreFiscal = 0
 );
 
 public record FactureListeDto(

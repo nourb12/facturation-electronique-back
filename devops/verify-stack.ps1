@@ -3,7 +3,7 @@ param(
     [string]$BackendRoot = "C:\backendpfe\einvoicing",
     [string]$FrontendUrl = "http://localhost",
     [string]$FrontendLoginUrl = "http://localhost/login",
-    [string]$BackendUrl = "http://localhost:5051/",
+    [string]$BackendUrl = "",
     [string]$BackendLoginUrl = "http://localhost/api/auth/login",
     [string]$OcrHealthUrl = "http://localhost:8000/health",
     [string]$JenkinsUrl = "http://localhost:8081/login",
@@ -70,6 +70,14 @@ $containers = @(
 )
 $containers | ForEach-Object { Assert-ContainerRunning $_ }
 
+if ([string]::IsNullOrWhiteSpace($BackendUrl)) {
+    $bindings = @(docker compose -f (Join-Path $BackendRoot "docker-compose.local.yml") port --index 1 backend-api 8080)
+    if ($LASTEXITCODE -ne 0 -or $bindings.Count -eq 0 -or $bindings[0] -notmatch ':(\d+)\s*$') {
+        throw "Cannot resolve the backend port from docker-compose.local.yml."
+    }
+    $BackendUrl = "http://localhost:$($Matches[1])/"
+}
+
 Write-Section "Application URLs"
 Assert-UrlStatus "Frontend" $FrontendUrl @(200)
 Assert-UrlStatus "Frontend login" $FrontendLoginUrl @(200)
@@ -89,6 +97,7 @@ $targetsJson = $targetsResponse.Content | ConvertFrom-Json
 $activeTargets = @($targetsJson.data.activeTargets)
 $downTargets = @($activeTargets | Where-Object { $_.health -ne "up" })
 
+if ($activeTargets.Count -eq 0) { throw "Prometheus returned no active targets." }
 if ($downTargets.Count -gt 0) {
     $downTargets | ForEach-Object { Write-Host "[FAIL] Target down: $($_.labels.job) / $($_.labels.instance)" -ForegroundColor Red }
     throw "Some Prometheus targets are down."
@@ -96,10 +105,20 @@ if ($downTargets.Count -gt 0) {
 
 Write-Host "[OK] Prometheus targets up: $($activeTargets.Count)" -ForegroundColor Green
 
+$queryUrl = ([uri]$PrometheusTargetsUrl).GetLeftPart([System.UriPartial]::Authority) + "/api/v1/query?query=probe_success"
+$probeResponse = Invoke-RestMethod -Uri $queryUrl -TimeoutSec 20
+$probes = @($probeResponse.data.result)
+if ($probeResponse.status -ne "success" -or $probes.Count -eq 0 -or @($probes | Where-Object { $_.value[1] -ne "1" }).Count -gt 0) {
+    throw "Blackbox probes are missing or report an unhealthy service."
+}
+Write-Host "[OK] Blackbox probes successful: $($probes.Count)" -ForegroundColor Green
+
 Write-Section "Compose files"
-docker compose -f (Join-Path $BackendRoot "docker-compose.local.yml") config | Out-Null
+docker compose -f (Join-Path $BackendRoot "docker-compose.local.yml") config --quiet
+if ($LASTEXITCODE -ne 0) { throw "Invalid docker-compose.local.yml configuration." }
 Write-Host "[OK] docker-compose.local.yml valid" -ForegroundColor Green
-docker compose -f (Join-Path $BackendRoot "docker-compose.devops.yml") config | Out-Null
+docker compose -f (Join-Path $BackendRoot "docker-compose.devops.yml") config --quiet
+if ($LASTEXITCODE -ne 0) { throw "Invalid docker-compose.devops.yml configuration." }
 Write-Host "[OK] docker-compose.devops.yml valid" -ForegroundColor Green
 
 Write-Section "Result"

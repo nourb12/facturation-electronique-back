@@ -130,6 +130,12 @@ public sealed class ScanService(
         if (document.EntrepriseId != entrepriseId)
             throw new AccesRefuseException();
 
+        // A lost mobile response must not create a second accounting transaction.
+        if (document.TransactionId.HasValue || document.Status == ScannedDocumentStatus.MobileReviewed)
+            return new ValidateScanResponseDto(document.Id, document.DocumentType,
+                document.Status.ToString(), document.TransactionId,
+                "Document déjà transmis. Consultez son suivi.");
+
         var normalizedType = NormalizeDocumentType(request.DocumentType ?? document.DocumentType);
         if (!document.DocumentType.Equals(normalizedType, StringComparison.OrdinalIgnoreCase))
             document.ChangerTypeDocument(utilisateurId, normalizedType);
@@ -140,6 +146,9 @@ public sealed class ScanService(
             .Where(f => f.Required && string.IsNullOrWhiteSpace(f.Value))
             .Select(f => f.Key)
             .ToList();
+
+        if (missingFields.Count > 0)
+            throw new ValidationMetierException("Complétez les informations obligatoires avant l'envoi.");
 
         document.MarquerCommeReluMobile(
             utilisateurId,

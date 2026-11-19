@@ -35,29 +35,30 @@ public sealed class FactureService(
             throw new ValidationMetierException("Le client est inactif.");
 
         Facture? factureOrigine = null;
+        if (req.FactureOrigineId.HasValue)
+        {
+            factureOrigine = await factureRepo.ObtenirParIdAsync(req.FactureOrigineId.Value, ct)
+                ?? throw new NotFoundException("Document d'origine introuvable.");
+            if (factureOrigine.EntrepriseId != entrepriseId || factureOrigine.ClientId != req.ClientId)
+                throw new AccesRefuseException("Le document d'origine doit appartenir au meme client et a la meme entreprise.");
+        }
         if (req.TypeFacture == Domain.Enums.TypeFacture.Avoir)
         {
-            if (req.FactureOrigineId is null)
+            if (factureOrigine is null)
                 throw new ValidationMetierException("Un avoir doit etre lie a une facture d'origine.");
 
-            var origine = await factureRepo.ObtenirParIdAsync(req.FactureOrigineId.Value, ct)
-                ?? throw new NotFoundException("Facture d'origine introuvable.");
-            if (origine.EntrepriseId != entrepriseId || origine.ClientId != req.ClientId)
-                throw new ValidationMetierException("L'avoir doit viser une facture du meme client et de la meme entreprise.");
-            if (origine.TypeFacture == Domain.Enums.TypeFacture.Avoir)
-                throw new ValidationMetierException("Un avoir ne peut pas avoir un autre avoir comme origine.");
-
-            factureOrigine = origine;
+            if (factureOrigine.TypeFacture != Domain.Enums.TypeFacture.Facture)
+                throw new ValidationMetierException("Un avoir doit viser une facture, pas un devis ou un autre avoir.");
         }
 
-        var numero = await numeroService.GenererNumeroAsync(entrepriseId, ct);
-
+        // Numéro provisoire : le compteur n'est incrémenté qu'après tous les contrôles métier.
         var facture = Facture.Creer(
             entrepriseId, req.ClientId, creePar,
-            numero, req.TypeFacture, req.ModePaiement,
+            "EN-COURS", req.TypeFacture, req.ModePaiement,
             req.DateEcheance, req.Reference, req.Notes,
             req.ConditionsPaiement, req.Devise, req.AppliquerRS,
-            req.CodeRS, req.TauxRS, req.FactureOrigineId);
+            req.CodeRS, req.TauxRS, req.FactureOrigineId,
+            req.RemiseGlobale, req.AppliquerTimbre);
 
         int ordre = 1;
         foreach (var ligneReq in req.Lignes)
@@ -71,7 +72,9 @@ public sealed class FactureService(
             facture.AjouterLigne(ligne);
         }
 
-        if (factureOrigine is not null)
+        facture.ControlerRemiseGlobale();
+
+        if (req.TypeFacture == Domain.Enums.TypeFacture.Avoir && factureOrigine is not null)
         {
             var avoirsExistants = await factureRepo.ObtenirAvoirsOrigineAsync(factureOrigine.Id, ct);
             var totalAvoirs = avoirsExistants.Sum(a => a.TotalTtc);
@@ -79,6 +82,8 @@ public sealed class FactureService(
                 throw new ValidationMetierException(
                     "Le montant cumule des avoirs ne peut pas depasser le total TTC de la facture d'origine.");
         }
+
+        facture.AttribuerNumero(await numeroService.GenererNumeroAsync(entrepriseId, ct));
 
         await factureRepo.AjouterAsync(facture, ct);
         await factureRepo.SauvegarderAsync(ct);
@@ -89,6 +94,19 @@ public sealed class FactureService(
     
     
     
+
+    private async Task ControlerPlafondAvoirAsync(Facture facture, CancellationToken ct)
+    {
+        if (facture.TypeFacture != Domain.Enums.TypeFacture.Avoir || !facture.FactureOrigineId.HasValue) return;
+        var origine = await factureRepo.ObtenirParIdAsync(facture.FactureOrigineId.Value, ct);
+        if (origine is null) return;
+        var autresAvoirs = (await factureRepo.ObtenirAvoirsOrigineAsync(origine.Id, ct))
+            .Where(a => a.Id != facture.Id)
+            .Sum(a => a.TotalTtc);
+        if (autresAvoirs + facture.TotalTtc > origine.TotalTtc)
+            throw new ValidationMetierException(
+                "Le montant cumule des avoirs ne peut pas depasser le total TTC de la facture d'origine.");
+    }
 
     public async Task<FactureDto> ObtenirParIdAsync(
         Guid id, Guid entrepriseId, CancellationToken ct = default)
@@ -143,7 +161,8 @@ public sealed class FactureService(
         facture.MettreAJourInfos(
             req.ModePaiement, req.DateEcheance,
             req.Reference, req.Notes, req.ConditionsPaiement,
-            req.AppliquerRS, req.CodeRS, req.TauxRS);
+            req.AppliquerRS, req.CodeRS, req.TauxRS,
+            req.RemiseGlobale, req.AppliquerTimbre);
 
         foreach (var ligneExistante in facture.Lignes.ToList())
             facture.SupprimerLigne(ligneExistante.Id);
@@ -159,6 +178,9 @@ public sealed class FactureService(
                 ligneReq.Unite, ligneReq.TauxRemise);
             facture.AjouterLigne(ligne);
         }
+
+        facture.ControlerRemiseGlobale();
+        await ControlerPlafondAvoirAsync(facture, ct);
 
         factureRepo.MettreAJour(facture);
         await factureRepo.SauvegarderAsync(ct);
@@ -239,8 +261,10 @@ public sealed class FactureService(
         var source = await factureRepo.ObtenirAvecDetailsAsync(id, ct)
             ?? throw new NotFoundException("Document source introuvable.");
         if (source.EntrepriseId != entrepriseId) throw new AccesRefuseException();
-        if (source.TypeFacture == Domain.Enums.TypeFacture.Facture)
-            throw new ValidationMetierException("Ce document est deja une facture.");
+        if (source.TypeFacture is not (Domain.Enums.TypeFacture.Devis or Domain.Enums.TypeFacture.Proforma))
+            throw new ValidationMetierException("Seuls les devis et les proformas peuvent etre convertis en facture.");
+        if (source.Statut == Domain.Enums.StatutFacture.Annulee)
+            throw new ValidationMetierException("Un document annule ne peut pas etre converti en facture.");
 
         var request = new CreerFactureRequest(
             source.ClientId,
@@ -263,7 +287,8 @@ public sealed class FactureService(
             source.AppliquerRS,
             source.CodeRS,
             source.TauxRS,
-            source.Id);
+            source.Id,
+            source.RemiseGlobale);
 
         return await CreerAsync(entrepriseId, creePar, request, ct);
     }
@@ -324,6 +349,12 @@ public sealed class FactureService(
 
         var now = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
 
+        var ligneTimbre = f.TimbreFiscal > 0
+            ? $"<div class=\"total-row\"><span>Timbre fiscal</span><span>{f.TimbreFiscal:N3} {f.Devise}</span></div>"
+            : string.Empty;
+        var ligneRs = f.MontantRS > 0
+            ? $"<div class=\"total-row\"><span>Retenue à la source ({f.TauxRS:N3}%)</span><span>- {f.MontantRS:N3} {f.Devise}</span></div>"
+            : string.Empty;
         return $@"<!DOCTYPE html>
 <html lang=""fr"">
 <head>
@@ -414,7 +445,10 @@ public sealed class FactureService(
     <div class=""totals-box"">
       <div class=""total-row""><span>Total HT</span><span>{f.TotalHt:N3} {f.Devise}</span></div>
       <div class=""total-row""><span>Total TVA</span><span>{f.TotalTva:N3} {f.Devise}</span></div>
-      <div class=""total-final""><span>Total TTC</span><span>{f.TotalTtc:N3} {f.Devise}</span></div>
+      <div class=""total-row""><span>Total TTC</span><span>{f.TotalTtc:N3} {f.Devise}</span></div>
+      {ligneTimbre}
+      {ligneRs}
+      <div class=""total-final""><span>Net à payer</span><span>{f.NetAPayer:N3} {f.Devise}</span></div>
     </div>
   </div>
   <div class=""footer"">
@@ -461,7 +495,8 @@ public sealed class FactureService(
             f.Notes, f.ConditionsPaiement,
             !string.IsNullOrEmpty(f.XmlTeif),
             f.VersionTeif, lignes, historique,
-            f.CreeLe, f.ModifieLe);
+            f.CreeLe, f.ModifieLe,
+            f.RemiseGlobale, f.TimbreFiscal);
 
         return Task.FromResult(dto);
     }

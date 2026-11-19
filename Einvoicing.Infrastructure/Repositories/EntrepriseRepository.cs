@@ -23,7 +23,7 @@ public sealed class EntrepriseRepository(ContextBaseDeDonnees db) : IEntrepriseR
         => await db.Entreprises.AddAsync(entreprise, ct);
 
     public void MettreAJour(Entreprise entreprise)
-        => db.Entreprises.Update(entreprise);
+        => db.MarquerModifie(entreprise);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

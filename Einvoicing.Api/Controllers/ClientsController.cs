@@ -32,7 +32,7 @@ public sealed class ClientsController(
     }
 
     [HttpPost]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(ClientDto), 201)]
     public async Task<IActionResult> Creer(
         [FromBody] CreerClientRequest req, CancellationToken ct)
@@ -79,7 +79,7 @@ public sealed class ClientsController(
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(ClientDto), 200)]
     public async Task<IActionResult> MettreAJour(
         Guid id, [FromBody] MettreAJourClientRequest req, CancellationToken ct)
@@ -91,7 +91,7 @@ public sealed class ClientsController(
     }
 
     [HttpPost("{id:guid}/desactiver")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     public async Task<IActionResult> Desactiver(Guid id, CancellationToken ct)
     {
         var guard = EntrepriseRequise(out var eId);
@@ -101,7 +101,7 @@ public sealed class ClientsController(
     }
 
     [HttpPost("{id:guid}/reactiver")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     public async Task<IActionResult> Reactiver(Guid id, CancellationToken ct)
     {
         var guard = EntrepriseRequise(out var eId);

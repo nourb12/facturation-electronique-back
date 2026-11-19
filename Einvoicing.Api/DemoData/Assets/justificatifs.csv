@@ -1,0 +1,11 @@
+fichier;fournisseur;matricule;type;date;numero;total_ht;total_tva;total_ttc
+justificatif_01.jpg;InfoDistrib Tunisie SARL;1293847/K/A/M/000;facture;2026-06-04;F2606-0107;2594.000;492.860;3087.860
+justificatif_02.jpg;Bureau Plus Fournitures;1102938/B/A/M/000;facture;2026-06-23;F2606-0114;865.000;164.350;1030.350
+justificatif_03.jpg;Cloud Maghreb Hosting;1456021/H/A/M/000;facture;2026-07-08;F2607-0121;515.000;97.850;613.850
+justificatif_04.jpg;Station Lac Carburants;0981234/S/N/M/000;ticket;2026-07-21;T2607-0128;121.200;23.028;144.228
+justificatif_05.jpg;Restaurant Le Golfe;1311208/R/N/M/000;ticket;2026-08-12;T2608-0135;186.000;13.020;199.020
+justificatif_06.jpg;Imprimerie Al Wafa;1210457/I/A/M/000;facture;2026-09-03;F2609-0142;444.000;84.360;529.360
+justificatif_07.jpg;Clim Services Plus;1388765/C/A/M/000;facture;2026-09-25;F2609-0149;380.000;72.200;453.200
+justificatif_08.jpg;TechnoNet Câblage;1477230/T/A/M/000;facture;2026-10-09;F2610-0156;746.000;141.740;888.740
+justificatif_09.jpg;Librairie Al Kitab;0874512/L/N/M/000;ticket;2026-10-28;T2610-0163;174.000;23.940;197.940
+justificatif_10.jpg;Taxi Express Tunis;0765390/T/N/P/000;ticket;2026-11-12;T2611-0170;28.000;5.320;33.320

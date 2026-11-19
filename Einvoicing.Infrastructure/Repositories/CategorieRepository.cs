@@ -23,7 +23,7 @@ public sealed class CategorieRepository(ContextBaseDeDonnees db) : ICategorieRep
         => await db.Categories.AddAsync(categorie, ct);
 
     public void MettreAJour(CategorieProduit categorie)
-        => db.Categories.Update(categorie);
+        => db.MarquerModifie(categorie);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

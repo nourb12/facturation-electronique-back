@@ -34,7 +34,8 @@ public record RegisterRequest(
 public record LoginRequest(
     string Email,
     string MotDePasse,
-    bool AdminConsole = false
+    bool AdminConsole = false,
+    string? RoleHint = null
 );
 
 

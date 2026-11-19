@@ -81,10 +81,43 @@ Depuis:
 cd C:\backendpfe\einvoicing
 ```
 
-Commande:
+Preparer les fichiers que les images runtime vont copier (a refaire apres chaque
+modification du code, ou utiliser le pipeline avec `BUILD_LOCAL_IMAGES=true`):
 
 ```powershell
-docker compose -f docker-compose.local.yml up -d
+dotnet publish .\Einvoicing.Api\Einvoicing.Api.csproj -c Release -o .docker/backend-publish /p:UseAppHost=false
+if ($LASTEXITCODE -ne 0) { throw "Backend publish failed." }
+Push-Location C:\frontendpfe\ey-invoice-portal
+try {
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw "Frontend install failed." }
+    npm run build -- --configuration production
+    if ($LASTEXITCODE -ne 0) { throw "Frontend build failed." }
+} finally {
+    Pop-Location
+}
+node .\devops\runtime-manifest.mjs
+if ($LASTEXITCODE -ne 0) { throw "Runtime provenance generation failed." }
+```
+
+`Dockerfile.local` du backend copie uniquement `.docker/backend-publish/`, produit
+par `dotnet publish`. L'ancien dossier `publish-local/` n'est plus utilise par
+cette image. Le frontend copie `dist/tuniflow/`, produit par le build Angular
+de production. Jenkins verifie la presence des fichiers d'entree avant la
+construction des images. Les Dockerfile standards restent des builds multi-etapes.
+
+Les images runtime exigent aussi `build-manifest.json`. Le script
+`devops/runtime-manifest.mjs` genere ce manifeste dans chaque sortie runtime :
+revision Git, presence de modifications locales, empreinte SHA-256 des sources,
+empreinte des fichiers publies, date UTC et identifiant de build. Un arbre de
+travail modifie n'est pas presente comme une version propre du commit Git.
+Jenkins execute cette generation apres les builds. Les manifestes combines sont
+conserves dans `.docker/provenance/runtime-manifests.json`.
+
+Construire puis lancer l'application depuis la racine du backend:
+
+```powershell
+docker compose -f docker-compose.local.yml up -d --build
 ```
 
 Verifier les conteneurs:
@@ -137,10 +170,18 @@ docker compose -f docker-compose.devops.yml down
 
 - Frontend: [http://localhost](http://localhost)
 - Frontend login: [http://localhost/login](http://localhost/login)
-- Backend API direct: [http://localhost:5051](http://localhost:5051)
+- Backend API direct (Docker): [http://localhost:5052](http://localhost:5052)
 - OCR API: [http://localhost:8000](http://localhost:8000)
 - OCR health: [http://localhost:8000/health](http://localhost:8000/health)
-- PostgreSQL: `localhost:5432`
+- PostgreSQL (Docker, depuis le PC): `localhost:5433` ; entre conteneurs: `postgres:5432`
+
+Le profil .NET hors Docker conserve `http://localhost:5051` dans
+`Einvoicing.Api/Properties/launchSettings.json`. Ce port de developpement est
+distinct du port Docker `5052`, qui redirige vers `8080` dans le conteneur.
+Nginx joint directement `backend-api:8080` sur le reseau Docker et expose
+`/api/` sur le port `80`. Jenkins et `devops/verify-stack.ps1` lisent le port
+publie avec `docker compose port backend-api 8080`, sans supposer `5051`.
+Le script PowerShell accepte toujours `-BackendUrl` pour une adresse explicite.
 
 ### Stack DevOps
 

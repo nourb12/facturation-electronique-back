@@ -50,7 +50,7 @@ public sealed class ClientRepository(ContextBaseDeDonnees db) : IClientRepositor
         => await db.Clients.AddAsync(client, ct);
 
     public void MettreAJour(Client client)
-        => db.Clients.Update(client);
+        => db.MarquerModifie(client);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

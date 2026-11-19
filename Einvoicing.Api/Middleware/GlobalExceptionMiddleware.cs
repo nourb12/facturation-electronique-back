@@ -50,6 +50,8 @@ public sealed class GlobalExceptionMiddleware(
             ),
             ValidationMetierException e => (HttpStatusCode.BadRequest, "BUSINESS_ERROR", e.Message, Array.Empty<string>(), null),
             ConflitException e => (HttpStatusCode.Conflict, "BUSINESS_ERROR", e.Message, Array.Empty<string>(), null),
+            DbUpdateConcurrencyException => (HttpStatusCode.Conflict, "CONCURRENT_UPDATE",
+                "Ce document a été modifié. Actualisez avant de réessayer.", Array.Empty<string>(), null),
             DbUpdateException dbEx when EstViolationUnique(dbEx, out var msg) =>
                 (HttpStatusCode.Conflict, "BUSINESS_ERROR", msg, Array.Empty<string>(), null),
             NotFoundException e => (HttpStatusCode.NotFound, "NOT_FOUND", e.Message, Array.Empty<string>(), null),

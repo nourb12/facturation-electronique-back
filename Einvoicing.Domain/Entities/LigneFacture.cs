@@ -59,7 +59,7 @@ public sealed class LigneFacture
             Description = description?.Trim(),
             Unite = unite.Trim(),
             Quantite = quantite,
-            PrixUnitaire = Math.Round(prixUnitaire, 3),
+            PrixUnitaire = Math.Round(prixUnitaire, 3, MidpointRounding.AwayFromZero),
             TauxRemise = tauxRemise,
             TauxTva = tauxTva
         };
@@ -70,11 +70,11 @@ public sealed class LigneFacture
 
     private void CalculerMontants()
     {
-        var brut = Math.Round(Quantite * PrixUnitaire, 3);
-        MontantRemise = Math.Round(brut * (TauxRemise / 100), 3);
-        MontantHt = Math.Round(brut - MontantRemise, 3);
-        MontantTva = Math.Round(MontantHt * (TauxTva / 100), 3);
-        MontantTtc = Math.Round(MontantHt + MontantTva, 3);
+        var brut = Math.Round(Quantite * PrixUnitaire, 3, MidpointRounding.AwayFromZero);
+        MontantRemise = Math.Round(brut * (TauxRemise / 100), 3, MidpointRounding.AwayFromZero);
+        MontantHt = Math.Round(brut - MontantRemise, 3, MidpointRounding.AwayFromZero);
+        MontantTva = Math.Round(MontantHt * (TauxTva / 100), 3, MidpointRounding.AwayFromZero);
+        MontantTtc = Math.Round(MontantHt + MontantTva, 3, MidpointRounding.AwayFromZero);
     }
 }
 

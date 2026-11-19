@@ -20,11 +20,10 @@ Copy-Item .env.example .env
 
 Dans `.env`, remplacer uniquement les valeurs `CHANGE_ME`. Ne jamais envoyer ce fichier dans Git.
 
-Pour démarrer l'API sécurisée, définir aussi la même clé que `MachineLearning__ApiKey` côté .NET :
+Pour démarrer l'API sécurisée sous Windows, utiliser le lanceur qui reprend la clé de développement de l'API .NET (variable `MachineLearning__ApiKey` ou secret utilisateur `MachineLearning:ApiKey`) sans l'afficher :
 
 ```powershell
-$env:TUNIFLOW_ML_API_KEY = "CHANGE_ME_INTERNAL_ML_API_KEY_MIN_32_CHARS"
-uvicorn app.main:app --reload --port 8001
+.\Start-Local.ps1
 ```
 
 Toutes les routes de calcul exigent l'en-tête interne `X-Internal-Api-Key`. Seule la route `/health` reste accessible pour la supervision.
@@ -57,10 +56,10 @@ Ouvrir `notebooks/01_exploration_retards.ipynb`, selectionner l'interpreteur `.v
 ## API (etape ulterieure)
 
 ```powershell
-uvicorn app.main:app --reload --port 8001
+.\Start-Local.ps1 -Reload
 ```
 
-La route `GET /health` permet de verifier que l'API Python fonctionne.
+La route `GET /health` confirme que l'API Python répond et que les fichiers de modèles existent. Elle ne vérifie ni la clé interne, ni l'exécution des modèles.
 ## Détection d'anomalies de transactions
 
 Le script `train_transaction_anomaly_model.py` compare deux détecteurs non supervisés :

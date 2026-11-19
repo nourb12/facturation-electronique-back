@@ -477,10 +477,14 @@ public sealed class EmailService(
 
     // ─── SMTP core ────────────────────────────────────────────────────────────
 
-    private async Task EnvoyerSmtpAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default)
+    public Task SendSecurityEmailAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default)
+        => EnvoyerSmtpAsync(destinataire, sujet, corpsHtml, ct, true);
+
+    private async Task EnvoyerSmtpAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default, bool requireDelivery = false)
     {
         if (EstModeDev)
         {
+            if (requireDelivery) throw new InvalidOperationException("Le fournisseur SMTP n'est pas configure.");
             logger.LogInformation("[EMAIL DEV] -> {Dest} | Sujet: {Sujet}", destinataire, sujet);
             return;
         }
@@ -504,6 +508,7 @@ public sealed class EmailService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Echec envoi email -> {Dest}", destinataire);
+            if (requireDelivery) throw new InvalidOperationException("Le fournisseur SMTP a refuse l'envoi.", ex);
         }
     }
 }

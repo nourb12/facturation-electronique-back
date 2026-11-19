@@ -5,7 +5,8 @@ public enum RoleUtilisateur
     SuperAdmin = 0,
     Admin = 1,
     ResponsableEntreprise = 2,
-    ResponsableFinancier = 3
+    ResponsableFinancier = 3,
+    CollaborateurVentes = 4
 }
 
 public enum StatutCompte
@@ -61,7 +62,8 @@ public enum TypeFacture
 {
     Facture = 0,
     Avoir = 1,
-    Proforma = 2
+    Proforma = 2,
+    Devis = 3
 }
 
 public enum ModePaiement

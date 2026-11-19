@@ -45,7 +45,7 @@ public sealed class FacturesController(
     }
 
     [HttpPost]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 201)]
     public async Task<IActionResult> Creer(
         [FromBody] CreerFactureRequest req, CancellationToken ct)
@@ -176,7 +176,7 @@ public sealed class FacturesController(
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 200)]
     public async Task<IActionResult> MettreAJour(
         Guid id, [FromBody] MettreAJourFactureRequest req, CancellationToken ct)
@@ -189,7 +189,7 @@ public sealed class FacturesController(
     }
 
     [HttpPost("{id:guid}/valider")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 200)]
     public async Task<IActionResult> Valider(Guid id, CancellationToken ct)
     {
@@ -200,8 +200,41 @@ public sealed class FacturesController(
         return Ok(result);
     }
 
-    [HttpPost("{id:guid}/rejeter")]
+    /// <summary>
+    /// Circuit fiscal en une action : contrôle de conformité TEIF, signature électronique
+    /// puis transmission à TTN. La réponse TTN arrive ensuite (simulation côté administration).
+    /// </summary>
+    [HttpPost("{id:guid}/soumettre-validation-fiscale")]
     [Authorize(Policy = "Tous")]
+    [ProducesResponseType(typeof(FactureDto), 200)]
+    public async Task<IActionResult> SoumettreValidationFiscale(
+        Guid id,
+        [FromServices] ITeifService teifService,
+        [FromServices] ISignatureService signatureService,
+        [FromServices] IEchangeTtnService echangeTtnService,
+        CancellationToken ct)
+    {
+        var guard = EntrepriseRequise(out var eId, out var uId);
+        if (guard is not null) return guard;
+
+        var facture = await factureService.ObtenirParIdAsync(id, eId, ct);
+        if (facture.Statut == "Validee")
+        {
+            if (!facture.XmlGenere)
+                await teifService.GenererXmlAsync(id, eId, ct);
+            await teifService.MarquerConformeAsync(id, eId, uId, ct);
+        }
+
+        var signature = await signatureService.DemanderSignatureAsync(id, eId, uId, ct);
+        if (signature.Statut != "Signee")
+            return Problem(title: "Signature électronique impossible", detail: signature.MessageErreur, statusCode: 422);
+
+        await echangeTtnService.EnvoyerAsync(id, eId, uId, ct);
+        return Ok(await factureService.ObtenirParIdAsync(id, eId, ct));
+    }
+
+    [HttpPost("{id:guid}/rejeter")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 200)]
     public async Task<IActionResult> Rejeter(
         Guid id, [FromBody] RejeterFactureRequest req, CancellationToken ct)
@@ -214,7 +247,7 @@ public sealed class FacturesController(
     }
 
     [HttpPost("{id:guid}/annuler")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 200)]
     public async Task<IActionResult> Annuler(
         Guid id, [FromBody] AnnulerFactureRequest req, CancellationToken ct)
@@ -227,7 +260,7 @@ public sealed class FacturesController(
     }
 
     [HttpPost("{id:guid}/remettre-brouillon")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 200)]
     public async Task<IActionResult> RemettreBrouillon(Guid id, CancellationToken ct)
     {
@@ -239,7 +272,7 @@ public sealed class FacturesController(
     }
 
     [HttpPost("{id:guid}/convertir-facture")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(FactureDto), 201)]
     public async Task<IActionResult> ConvertirEnFacture(
         Guid id, [FromBody] ConvertirFactureRequest? req, CancellationToken ct)
@@ -263,7 +296,7 @@ public sealed class FacturesController(
     }
 
     [HttpGet("{id:guid}/pdf")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(200)]
     public async Task<IActionResult> TelechargerPdf(Guid id, CancellationToken ct)
     {

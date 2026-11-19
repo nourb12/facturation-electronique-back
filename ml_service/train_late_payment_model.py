@@ -1,4 +1,3 @@
-"""Train and evaluate the late-payment prediction models reproducibly."""
 
 from __future__ import annotations
 

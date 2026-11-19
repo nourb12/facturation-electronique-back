@@ -1,5 +1,6 @@
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Interfaces;
+using Einvoicing.Application.Configuration;
 using Einvoicing.Application.Services;
 using Einvoicing.Domain.Entities;
 using Einvoicing.Domain.Enums;
@@ -18,8 +19,8 @@ public class DemandeAccesServiceTests
     private readonly Mock<IPasswordHasher> _passwordHasher = new();
     private readonly Mock<IFileStorageService> _fileStorage = new();
     private readonly Mock<IOcrClient> _ocrClient = new();
-    private readonly Mock<IOtpDemandeAccesService> _otpService = new();
     private readonly Mock<ISmsService> _smsService = new();
+    private readonly Mock<IPlatformConfigurationService> _platformConfiguration = new();
     private readonly KycScoringService _kycScoring = new();
 
     private DemandeAccesService CreateService() => new(
@@ -30,9 +31,19 @@ public class DemandeAccesServiceTests
         _fileStorage.Object,
         _kycScoring,
         _ocrClient.Object,
-        _otpService.Object,
         _smsService.Object,
+        _platformConfiguration.Object,
         NullLogger<DemandeAccesService>.Instance);
+
+    public DemandeAccesServiceTests()
+    {
+        _platformConfiguration
+            .Setup(x => x.GetIntAsync(PlatformConfigurationKeys.KycAutoApprovalThreshold, 80, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(80);
+        _platformConfiguration
+            .Setup(x => x.GetIntAsync(PlatformConfigurationKeys.KycManualReviewThreshold, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(50);
+    }
 
     [Fact]
     public async Task SoumettreDemandeAsync_NormaliseMatriculeEtCreeEntreprise()

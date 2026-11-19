@@ -21,7 +21,7 @@ public sealed class CalendrierRepository(ContextBaseDeDonnees db) : ICalendrierR
         => await db.CalendrierEvents.AddAsync(evt, ct);
 
     public void MettreAJourEvent(CalendrierEvent evt)
-        => db.CalendrierEvents.Update(evt);
+        => db.MarquerModifie(evt);
 
     public void SupprimerEvent(CalendrierEvent evt)
         => db.CalendrierEvents.Remove(evt);
@@ -40,7 +40,7 @@ public sealed class CalendrierRepository(ContextBaseDeDonnees db) : ICalendrierR
         => await db.CalendrierTasks.AddAsync(task, ct);
 
     public void MettreAJourTask(CalendrierTask task)
-        => db.CalendrierTasks.Update(task);
+        => db.MarquerModifie(task);
 
     public void SupprimerTask(CalendrierTask task)
         => db.CalendrierTasks.Remove(task);

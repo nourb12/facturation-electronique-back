@@ -21,8 +21,12 @@ public sealed class JwtService(
     ILogger<JwtService> logger) : IJwtService
 {
     private string Secret => configuration["Jwt:Secret"]!;
-    private string Issuer => configuration["Jwt:Issuer"]!;
-    private string Audience => configuration["Jwt:Audience"]!;
+    private string Issuer => string.IsNullOrWhiteSpace(configuration["Jwt:Issuer"])
+        ? "Einvoicing.Api"
+        : configuration["Jwt:Issuer"]!;
+    private string Audience => string.IsNullOrWhiteSpace(configuration["Jwt:Audience"])
+        ? "Einvoicing.Frontend"
+        : configuration["Jwt:Audience"]!;
     private int Expiry =>
         int.TryParse(configuration["Jwt:ExpiryMinutes"], out var v1) ? v1 :
         int.TryParse(configuration["Jwt:ExpirationMinutes"], out var v2) ? v2 : 60;
@@ -71,6 +75,18 @@ public sealed class JwtService(
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(bytes);
         return Convert.ToBase64String(bytes);
+    }
+
+    public string GenererTokenSupport(Utilisateur utilisateur, Guid acteurId, string acteurJwtId)
+    {
+        var claims = new[] {
+            new Claim("userId", utilisateur.Id.ToString()), new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Role, utilisateur.Role.ToString()), new Claim("entrepriseId", utilisateur.EntrepriseId?.ToString() ?? ""),
+            new Claim("supportActorId", acteurId.ToString()), new Claim("supportActorJti", acteurJwtId),
+            new Claim(JwtRegisteredClaimNames.Email, utilisateur.Email), new Claim("prenom", utilisateur.Prenom), new Claim("nom", utilisateur.Nom)
+        };
+        return new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(Issuer, Audience, claims,
+            DateTime.UtcNow, DateTime.UtcNow.AddMinutes(10), new SigningCredentials(Cle, SecurityAlgorithms.HmacSha256)));
     }
 
     

@@ -228,9 +228,12 @@ public sealed class LettrageController(ContextBaseDeDonnees db, ICurrentUserServ
         if (entrepriseId is null) return Ok(Array.Empty<object>());
 
         var factures = await db.Factures
-            .Where(f => f.EntrepriseId == entrepriseId && f.MontantRestant > 0 && f.Statut != StatutFacture.Annulee)
+            // MontantRestant est calculé côté C# : on filtre sur les colonnes réellement stockées.
+            .Where(f => f.EntrepriseId == entrepriseId && f.NetAPayer - f.MontantPaye > 0
+                && f.Statut != StatutFacture.Annulee && f.Statut != StatutFacture.Brouillon
+                && f.TypeFacture == TypeFacture.Facture)
             .OrderBy(f => f.DateEcheance)
-            .Select(f => new { f.Id, f.Numero, f.DateEcheance, f.TotalTtc, f.MontantPaye, f.MontantRestant, f.Statut })
+            .Select(f => new { f.Id, f.Numero, f.DateEcheance, f.TotalTtc, f.MontantPaye, MontantRestant = f.NetAPayer - f.MontantPaye, f.Statut })
             .ToListAsync(ct);
 
         return Ok(factures);
@@ -242,8 +245,12 @@ public sealed class LettrageController(ContextBaseDeDonnees db, ICurrentUserServ
         if (request.TransactionId is null || request.FactureId is null)
             return BadRequest(new { message = "La facture et la transaction sont obligatoires." });
 
-        var transaction = await db.Transactions.FirstOrDefaultAsync(t => t.Id == request.TransactionId, ct);
+        var entrepriseId = await ComptabiliteWorkflow.EntrepriseIdAsync(db, currentUser, ct);
+        if (entrepriseId is null || currentUser.UtilisateurId is null) return Forbid();
+        var transaction = await db.Transactions.FirstOrDefaultAsync(t => t.Id == request.TransactionId && t.EntrepriseId == entrepriseId, ct);
         if (transaction is null) return NotFound(new { message = "Transaction introuvable." });
+        if (!await db.Factures.AnyAsync(f => f.Id == request.FactureId && f.EntrepriseId == entrepriseId, ct))
+            return NotFound(new { message = "Facture introuvable." });
 
         transaction.LierFacture(currentUser.UtilisateurId ?? Guid.Empty, request.FactureId.Value);
         await db.SaveChangesAsync(ct);
@@ -318,8 +325,8 @@ public sealed class AuditController(ContextBaseDeDonnees db, ICurrentUserService
 
 internal static class ComptabiliteWorkflow
 {
-    internal static async Task<Guid?> EntrepriseIdAsync(ContextBaseDeDonnees db, ICurrentUserService currentUser, CancellationToken ct)
-        => currentUser.EntrepriseId ?? await db.Entreprises.OrderByDescending(e => e.ModifieLe).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+    internal static Task<Guid?> EntrepriseIdAsync(ContextBaseDeDonnees db, ICurrentUserService currentUser, CancellationToken ct)
+        => Task.FromResult(currentUser.EntrepriseId);
 
     internal static async Task<List<EcritureDto>> BuildEcrituresAsync(ContextBaseDeDonnees db, ICurrentUserService currentUser, CancellationToken ct)
     {

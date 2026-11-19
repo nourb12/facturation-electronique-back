@@ -9,8 +9,6 @@ public sealed class SoumettreDemandeAccesValidator : AbstractValidator<Soumettre
 {
     public SoumettreDemandeAccesValidator()
     {
-        RuleFor(x => x.OtpVerificationId).NotEmpty().WithMessage("La verification OTP est obligatoire.");
-        RuleFor(x => x.OtpVerificationToken).NotEmpty().WithMessage("La verification OTP est obligatoire.");
         RuleFor(x => x.ProfileType)
             .Must(value => value is "independant" or "entreprise")
             .WithMessage("Le type de profil est invalide.");

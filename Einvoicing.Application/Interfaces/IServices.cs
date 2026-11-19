@@ -31,6 +31,7 @@ public interface IAuthService
 public interface IJwtService
 {
     string GenererAccessToken(Utilisateur utilisateur);
+    string GenererTokenSupport(Utilisateur utilisateur, Guid acteurId, string acteurJwtId);
     string GenererRefreshToken();
     ClaimsResult? ExtraireClaimsTokenExpire(string token);
 }
@@ -51,6 +52,7 @@ public interface ITotpService
 public interface IEmailService
 {
     Task SendEmailAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default);
+    Task SendSecurityEmailAsync(string destinataire, string sujet, string corpsHtml, CancellationToken ct = default);
     Task EnvoyerOtpAsync(string email, string prenom, string otp, CancellationToken ct = default);
     Task EnvoyerAlerteConnexionAsync(string email, string prenom, string ip, string appareil, CancellationToken ct = default);
     Task EnvoyerConfirmationReinitialisationAsync(string email, string prenom, CancellationToken ct = default);

@@ -14,7 +14,8 @@ namespace Einvoicing.Application.Services;
 public sealed class UtilisateurService(
     IUtilisateurRepository utilisateurRepo,
     ISessionRepository sessionRepo,
-    IPasswordHasher passwordHasher
+    IPasswordHasher passwordHasher,
+    ICurrentUserService? currentUser = null
 ) : IUtilisateurService
 {
     public async Task<UtilisateurListeDto> CreerAsync(
@@ -68,6 +69,7 @@ public sealed class UtilisateurService(
     {
         var u = await utilisateurRepo.ObtenirParIdAsync(id, ct)
             ?? throw new NotFoundException("Utilisateur introuvable.");
+        await VerifierProtectionAsync(u, ct);
         u.Suspendre();
         utilisateurRepo.MettreAJour(u);
         await utilisateurRepo.SauvegarderAsync(ct);
@@ -77,6 +79,8 @@ public sealed class UtilisateurService(
     {
         var u = await utilisateurRepo.ObtenirParIdAsync(id, ct)
             ?? throw new NotFoundException("Utilisateur introuvable.");
+        if (u.Role == RoleUtilisateur.SuperAdmin && currentUser is not null && currentUser.Role != nameof(RoleUtilisateur.SuperAdmin))
+            throw new AccesRefuseException("Seul un SuperAdmin peut reactiver un autre SuperAdmin.");
         u.Reactiver();
         utilisateurRepo.MettreAJour(u);
         await utilisateurRepo.SauvegarderAsync(ct);
@@ -86,6 +90,7 @@ public sealed class UtilisateurService(
     {
         var u = await utilisateurRepo.ObtenirParIdAsync(id, ct)
             ?? throw new NotFoundException("Utilisateur introuvable.");
+        await VerifierProtectionAsync(u, ct);
         u.Supprimer();
         utilisateurRepo.MettreAJour(u);
         await utilisateurRepo.SauvegarderAsync(ct);
@@ -141,6 +146,21 @@ public sealed class UtilisateurService(
         foreach (var s in sessions)
             await sessionRepo.SupprimerAsync(s.Id, ct);
         await sessionRepo.SauvegarderAsync(ct);
+    }
+
+    private async Task VerifierProtectionAsync(Utilisateur utilisateur, CancellationToken ct)
+    {
+        if (currentUser?.UtilisateurId == utilisateur.Id)
+            throw new AccesRefuseException("Vous ne pouvez pas suspendre ou archiver votre propre compte.");
+        if (utilisateur.Role != RoleUtilisateur.SuperAdmin) return;
+        if (currentUser is not null && currentUser.Role != nameof(RoleUtilisateur.SuperAdmin))
+            throw new AccesRefuseException("Seul un SuperAdmin peut intervenir sur un autre SuperAdmin.");
+        if (utilisateur.Statut == StatutCompte.Actif && !utilisateur.EstSupprime)
+        {
+            var utilisateurs = await utilisateurRepo.ListerTousAsync(ct);
+            if (utilisateurs.Count(u => u.Role == RoleUtilisateur.SuperAdmin && u.Statut == StatutCompte.Actif && !u.EstSupprime) <= 1)
+                throw new AccesRefuseException("Le dernier SuperAdmin actif doit être conservé.");
+        }
     }
 
     private static UtilisateurListeDto MapToDto(Utilisateur u) => new(

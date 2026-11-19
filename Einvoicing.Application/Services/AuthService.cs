@@ -144,6 +144,10 @@ public sealed class AuthService(
         if (req.AdminConsole && utilisateur.Role != RoleUtilisateur.SuperAdmin)
             throw new AccesRefuseException("Acces reserve aux administrateurs systeme.");
 
+        if (!string.IsNullOrWhiteSpace(req.RoleHint) &&
+            !RoleCompatibleAvecEspace(req.RoleHint, utilisateur.Role))
+            throw new AccesRefuseException("Ce compte n'est pas autorise pour cet espace.");
+
         rateLimiter.Reinitialiser(cleRate);
         utilisateur.EnregistrerConnexion();
         await utilisateurRepo.SauvegarderAsync(ct);
@@ -169,7 +173,7 @@ public sealed class AuthService(
             throw new ValidationMetierException("Code Google manquant.");
 
         var roleHint = (req.RoleHint ?? string.Empty).Trim().ToLowerInvariant();
-        if (roleHint is not ("admin" or "financier" or "entreprise"))
+        if (roleHint is not ("admin" or "financier" or "entreprise" or "ventes"))
             throw new ValidationMetierException("Espace Google invalide.");
 
         using var http = new HttpClient();
@@ -228,6 +232,8 @@ public sealed class AuthService(
         var utilisateur = await utilisateurRepo.ObtenirParIdAsync(req.UtilisateurId, ct)
             ?? throw new NotFoundException("Utilisateur introuvable.");
 
+        if (!utilisateur.PeutSeConnecter()) throw new CompteInactifException();
+
         if (!utilisateur.DeuxFAActif || utilisateur.DeuxFASecret is null)
             throw new ValidationMetierException("La 2FA n'est pas activée sur ce compte.");
 
@@ -260,6 +266,10 @@ public sealed class AuthService(
         if (!refreshToken.EstValide()) throw new TokenInvalideException();
         if (refreshToken.JwtId != claims.JwtId) throw new TokenInvalideException();
         if (refreshToken.UtilisateurId != claims.UtilisateurId) throw new TokenInvalideException();
+
+        var compte = await utilisateurRepo.ObtenirParIdAsync(claims.UtilisateurId, ct)
+            ?? throw new TokenInvalideException();
+        if (!compte.PeutSeConnecter() || compte.Role.ToString() != claims.Role) throw new TokenInvalideException();
 
         refreshToken.Utiliser();
         await refreshTokenRepo.SauvegarderAsync(ct);
@@ -444,6 +454,7 @@ public sealed class AuthService(
         "admin" => role == RoleUtilisateur.SuperAdmin,
         "financier" => role is RoleUtilisateur.ResponsableFinancier or RoleUtilisateur.Admin or RoleUtilisateur.SuperAdmin,
         "entreprise" => role is RoleUtilisateur.ResponsableEntreprise or RoleUtilisateur.Admin or RoleUtilisateur.SuperAdmin,
+        "ventes" => role == RoleUtilisateur.CollaborateurVentes,
         _ => false
     };
 

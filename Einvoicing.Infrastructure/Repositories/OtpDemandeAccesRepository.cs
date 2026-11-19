@@ -13,6 +13,6 @@ public sealed class OtpDemandeAccesRepository(ContextBaseDeDonnees db) : IOtpDem
     public Task AjouterAsync(OtpDemandeAcces otp, CancellationToken ct = default)
         => db.OtpDemandesAcces.AddAsync(otp, ct).AsTask();
 
-    public void MettreAJour(OtpDemandeAcces otp) => db.OtpDemandesAcces.Update(otp);
+    public void MettreAJour(OtpDemandeAcces otp) => db.MarquerModifie(otp);
     public Task SauvegarderAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
 }

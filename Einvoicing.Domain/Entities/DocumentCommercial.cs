@@ -24,6 +24,12 @@ public sealed class DocumentCommercial
     public DateTime CreeLe { get; private set; }
     public DateTime ModifieLe { get; private set; }
 
+    private static readonly Dictionary<string, string[]> StatutsAutorises = new()
+    {
+        ["bon_commande"] = ["Brouillon", "Reçu", "Confirmé", "En cours", "Livré", "Annulé", "Facturé"],
+        ["bon_livraison"] = ["Brouillon", "Préparé", "Expédié", "Livré", "Litige", "Facturé"],
+    };
+
     private DocumentCommercial() { }
 
     public static DocumentCommercial Creer(Guid entrepriseId, Guid clientId, Guid creePar, string type, string numero,
@@ -49,7 +55,12 @@ public sealed class DocumentCommercial
     {
         if (FactureCreeeId.HasValue) throw new ValidationMetierException("Un document deja facture ne peut plus etre modifie.");
         if (totalTtc <= 0) throw new ValidationMetierException("Le total TTC doit etre positif.");
-        Statut = string.IsNullOrWhiteSpace(statut) ? Statut : statut.Trim(); DateEcheance = dateEcheance;
+        var nouveauStatut = string.IsNullOrWhiteSpace(statut) ? Statut : statut.Trim();
+        if (StatutsAutorises.TryGetValue(Type, out var autorises) && !autorises.Contains(nouveauStatut))
+            throw new ValidationMetierException($"Statut « {nouveauStatut} » invalide pour ce document.");
+        if (Statut == "Annulé" && nouveauStatut != "Annulé")
+            throw new ValidationMetierException("Un document annulé ne peut plus changer de statut.");
+        Statut = nouveauStatut; DateEcheance = dateEcheance;
         LignesJson = lignesJson; TotalHt = Math.Round(totalHt, 3); TotalTva = Math.Round(totalTva, 3); TotalTtc = Math.Round(totalTtc, 3);
         Reference = reference?.Trim(); Notes = notes?.Trim(); ModifieLe = DateTime.UtcNow;
     }

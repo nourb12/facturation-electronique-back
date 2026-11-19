@@ -205,8 +205,8 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         return new(BuildEcritures(factures, paiements, transactions, clients, ecrituresManuelles));
     }
 
-    private async Task<Guid?> EntrepriseIdAsync(CancellationToken ct)
-        => currentUser.EntrepriseId ?? await db.Entreprises.OrderByDescending(e => e.ModifieLe).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+    private Task<Guid?> EntrepriseIdAsync(CancellationToken ct)
+        => Task.FromResult(currentUser.EntrepriseId);
 
     private static List<EcritureDto> BuildEcritures(
         List<Facture> factures,
@@ -218,18 +218,34 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         var rows = new List<EcritureDto>();
         var i = 1;
 
-        foreach (var facture in factures.OrderByDescending(f => f.DateEmission).Take(40))
+        // Seules les pièces émises sont comptabilisées : ni devis, ni proforma, ni brouillon, ni facture annulée.
+        var piecesComptables = factures.Where(f =>
+            f.TypeFacture is TypeFacture.Facture or TypeFacture.Avoir
+            && f.Statut is not (StatutFacture.Brouillon or StatutFacture.Annulee));
+
+        foreach (var facture in piecesComptables.OrderByDescending(f => f.DateEmission).Take(500))
         {
             var client = clients.GetValueOrDefault(facture.ClientId, "Client");
             var journal = facture.TypeFacture == TypeFacture.Avoir ? "AV" : "VT";
             var signe = facture.TypeFacture == TypeFacture.Avoir ? -1 : 1;
+            var creance = facture.TotalTtc + facture.TimbreFiscal;
 
             rows.Add(Row(i++, facture.DateEmission, journal, facture.Numero, "411000",
                 facture.TypeFacture == TypeFacture.Avoir ? "Avoir client" : "Creance client",
                 client,
-                Math.Max(0, signe * facture.TotalTtc),
-                Math.Max(0, -signe * facture.TotalTtc),
+                Math.Max(0, signe * creance),
+                Math.Max(0, -signe * creance),
                 facture.Statut.ToString()));
+
+            if (facture.TimbreFiscal > 0)
+            {
+                rows.Add(Row(i++, facture.DateEmission, journal, facture.Numero, "438900",
+                    "Droit de timbre",
+                    client,
+                    Math.Max(0, -signe * facture.TimbreFiscal),
+                    Math.Max(0, signe * facture.TimbreFiscal),
+                    facture.Statut.ToString()));
+            }
 
             rows.Add(Row(i++, facture.DateEmission, journal, facture.Numero, "707000",
                 "Produits factures",
@@ -249,14 +265,14 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
             }
         }
 
-        foreach (var paiement in paiements.OrderByDescending(p => p.DatePaiement).Take(30))
+        foreach (var paiement in paiements.OrderByDescending(p => p.DatePaiement).Take(500))
         {
             var piece = paiement.Reference ?? paiement.Id.ToString("N")[..10].ToUpperInvariant();
             rows.Add(Row(i++, paiement.DatePaiement, "BQ", piece, "532000", "Encaissement client", paiement.Banque ?? "Banque", paiement.Montant, 0, "Lettre"));
             rows.Add(Row(i++, paiement.DatePaiement, "BQ", piece, "411000", "Lettrage client", paiement.Banque ?? "Banque", 0, paiement.Montant, "Lettre"));
         }
 
-        foreach (var tx in transactions.OrderByDescending(t => t.Date).Take(70))
+        foreach (var tx in transactions.OrderByDescending(t => t.Date).Take(500))
         {
             var compte = string.IsNullOrWhiteSpace(tx.Compte) ? (tx.Type == TypeTransaction.Entree ? "532000" : "607000") : tx.Compte!;
             var journal = compte.StartsWith("6") ? "AC" : compte.StartsWith("2") || compte.StartsWith("4") ? "OD" : "BQ";
@@ -401,6 +417,7 @@ public sealed class ComptabiliteController(ContextBaseDeDonnees db, ICurrentUser
         new("437100", "Retenue a la source", "Classe 4", "Fiscalite", "Modele 41"),
         new("438600", "FODEC a payer", "Classe 4", "Fiscalite", "FODEC 1%"),
         new("438800", "TCL a payer", "Classe 4", "Fiscalite", "Taxe collectivites locales"),
+        new("438900", "Droit de timbre a reverser", "Classe 4", "Fiscalite", "Timbre fiscal sur factures"),
         new("532000", "Banques", "Classe 5", "Tresorerie", "Rapprochement bancaire"),
         new("607000", "Achats de marchandises", "Classe 6", "Charges", "Achats fournisseurs"),
         new("641100", "Salaires", "Classe 6", "Charges", "Paie"),

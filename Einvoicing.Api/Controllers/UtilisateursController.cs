@@ -7,6 +7,9 @@ using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Einvoicing.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace Einvoicing.Api.Controllers;
 
@@ -16,7 +19,8 @@ namespace Einvoicing.Api.Controllers;
 [Authorize(Policy = "ResponsableOuAdmin")]
 public sealed class UtilisateursController(
     IUtilisateurService utilisateurService,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    ContextBaseDeDonnees db
 ) : ControllerBase
 {
     private IActionResult? EntrepriseRequise(out Guid entrepriseId)
@@ -69,7 +73,9 @@ public sealed class UtilisateursController(
     [Authorize(Policy = "SuperOuAdmin")]
     public async Task<IActionResult> Suspendre(Guid id, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await utilisateurService.SuspendreAsync(id, ct);
+        await transaction.CommitAsync(ct);
         return Ok(new { message = "Utilisateur suspendu." });
     }
 
@@ -85,8 +91,10 @@ public sealed class UtilisateursController(
     [Authorize(Policy = "SuperOuAdmin")]
     public async Task<IActionResult> Supprimer(Guid id, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await utilisateurService.SupprimerAsync(id, ct);
-        return Ok(new { message = "Utilisateur supprimé." });
+        await transaction.CommitAsync(ct);
+        return Ok(new { message = "Compte archivé. Les données historiques sont conservées." });
     }
 
     [HttpPost("{id:guid}/changer-mot-de-passe")]

@@ -13,7 +13,7 @@ public sealed class ScannedDocumentRepository(ContextBaseDeDonnees db) : IScanne
         => db.ScannedDocuments.AddAsync(document, ct).AsTask();
 
     public void MettreAJour(ScannedDocument document)
-        => db.ScannedDocuments.Update(document);
+        => db.MarquerModifie(document);
 
     public Task SauvegarderAsync(CancellationToken ct = default)
         => db.SaveChangesAsync(ct);

@@ -126,7 +126,7 @@ public sealed class DocumentsController(
     }
 
     [HttpPost("{id}/convertir")]
-    [Authorize(Policy = "Tous")]
+    [Authorize(Policy = "Ventes")]
     [ProducesResponseType(typeof(DocumentFluxDto), 200)]
     public async Task<IActionResult> Convertir(string id, CancellationToken ct)
     {
@@ -139,7 +139,7 @@ public sealed class DocumentsController(
         var decoded = Uri.UnescapeDataString(id);
         var parts = decoded.Split(':', 2);
         if (parts.Length != 2 || parts[0] != "facture" || !Guid.TryParse(parts[1], out var factureId))
-            return BadRequest(new { message = "Seules les factures proforma et avoirs backend peuvent etre convertis automatiquement." });
+            return BadRequest(new { message = "Seuls les devis et proformas backend peuvent etre convertis automatiquement." });
 
         var created = await factureService.ConvertirEnFactureAsync(
             factureId,
@@ -253,9 +253,8 @@ public sealed class DocumentsController(
         return NoContent();
     }
 
-    private async Task<Guid?> EntrepriseIdAsync(CancellationToken ct)
-        => currentUser.EntrepriseId
-           ?? await db.Entreprises.OrderByDescending(e => e.ModifieLe).Select(e => (Guid?)e.Id).FirstOrDefaultAsync(ct);
+    private Task<Guid?> EntrepriseIdAsync(CancellationToken ct)
+        => Task.FromResult(currentUser.EntrepriseId);
 
     private IActionResult? EntrepriseUtilisateurRequis(out Guid entrepriseId, out Guid utilisateurId)
     {
@@ -319,6 +318,7 @@ public sealed class DocumentsController(
         {
             TypeFacture.Avoir => "avoir",
             TypeFacture.Proforma => "devis",
+            TypeFacture.Devis => "devis",
             _ => "facture"
         };
 

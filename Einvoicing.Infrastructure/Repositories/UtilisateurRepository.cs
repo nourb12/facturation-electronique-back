@@ -19,7 +19,7 @@ public sealed class UtilisateurRepository(ContextBaseDeDonnees db) : IUtilisateu
         => await db.Utilisateurs.AddAsync(u, ct);
 
     public void MettreAJour(Utilisateur u)
-        => db.Utilisateurs.Update(u);
+        => db.MarquerModifie(u);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

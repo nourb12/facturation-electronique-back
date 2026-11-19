@@ -72,3 +72,94 @@ public sealed class AbonnementSaas
         ModifieLe = DateTime.UtcNow;
     }
 }
+
+public sealed class ParametrePlateforme
+{
+    public Guid Id { get; private set; }
+    public string Cle { get; private set; } = string.Empty;
+    public string ValeurJson { get; private set; } = "{}";
+    public string TypeValeur { get; private set; } = "Json";
+    public string Description { get; private set; } = string.Empty;
+    public bool Verrouille { get; private set; }
+    public Guid? ModifiePar { get; private set; }
+    public DateTime ModifieLe { get; private set; }
+
+    private ParametrePlateforme() { }
+
+    public static ParametrePlateforme Creer(
+        string cle,
+        string valeurJson,
+        string typeValeur = "Json",
+        string? description = null,
+        Guid? modifiePar = null)
+    {
+        if (string.IsNullOrWhiteSpace(cle)) throw new ValidationMetierException("La clé du paramètre est obligatoire.");
+        return new ParametrePlateforme
+        {
+            Id = Guid.NewGuid(),
+            Cle = cle.Trim(),
+            ValeurJson = valeurJson,
+            TypeValeur = typeValeur.Trim(),
+            Description = description?.Trim() ?? string.Empty,
+            ModifiePar = modifiePar,
+            ModifieLe = DateTime.UtcNow
+        };
+    }
+
+    public void MettreAJour(string valeurJson, Guid? modifiePar = null)
+    {
+        if (Verrouille)
+            throw new ValidationMetierException($"Le paramètre '{Cle}' est verrouillé.");
+
+        ValeurJson = valeurJson;
+        ModifiePar = modifiePar;
+        ModifieLe = DateTime.UtcNow;
+    }
+
+    public void DefinirVerrouillage(bool verrouille, Guid modifiePar)
+    {
+        Verrouille = verrouille;
+        ModifiePar = modifiePar;
+        ModifieLe = DateTime.UtcNow;
+    }
+}
+
+public sealed class HistoriqueParametrePlateforme
+{
+    public Guid Id { get; private set; }
+    public Guid ParametreId { get; private set; }
+    public string Cle { get; private set; } = string.Empty;
+    public string AncienneValeur { get; private set; } = string.Empty;
+    public string NouvelleValeur { get; private set; } = string.Empty;
+    public string Action { get; private set; } = string.Empty;
+    public string Motif { get; private set; } = string.Empty;
+    public Guid ModifiePar { get; private set; }
+    public DateTime ModifieLe { get; private set; }
+
+    private HistoriqueParametrePlateforme() { }
+
+    public static HistoriqueParametrePlateforme Creer(
+        ParametrePlateforme parametre,
+        string ancienneValeur,
+        string nouvelleValeur,
+        string action,
+        string motif,
+        Guid modifiePar)
+    {
+        if (string.IsNullOrWhiteSpace(motif))
+            throw new ValidationMetierException("Le motif de la modification est obligatoire.");
+
+        return new HistoriqueParametrePlateforme
+        {
+            Id = Guid.NewGuid(),
+            ParametreId = parametre.Id,
+            Cle = parametre.Cle,
+            AncienneValeur = ancienneValeur,
+            NouvelleValeur = nouvelleValeur,
+            Action = action,
+            Motif = motif.Trim(),
+            ModifiePar = modifiePar,
+            ModifieLe = DateTime.UtcNow
+        };
+    }
+}

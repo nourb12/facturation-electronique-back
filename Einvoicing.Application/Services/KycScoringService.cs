@@ -4,6 +4,8 @@ using System.Text.RegularExpressions;
 using Einvoicing.Application.DTOs;
 using Einvoicing.Application.Helpers;
 
+using Einvoicing.Domain;
+
 namespace Einvoicing.Application.Services;
 
 // ─── Résultats du scoring ────────────────────────────────────────────────────
@@ -114,8 +116,15 @@ public sealed class KycScoringService
         string? cheminCin,
         string? cheminPatente,
         string? cheminRib,
-        OcrExtractionResult? ocr = null)
+        OcrExtractionResult? ocr = null,
+        int autoApprovalThreshold = 80,
+        int manualReviewThreshold = 50)
     {
+        if (autoApprovalThreshold is < 1 or > 100
+            || manualReviewThreshold is < 0 or > 99
+            || manualReviewThreshold >= autoApprovalThreshold)
+            throw new ArgumentOutOfRangeException(nameof(autoApprovalThreshold), "Les seuils KYC sont incohérents.");
+
         var flags = new List<KycFlag>();
         var breakdown = new List<KycBreakdownItem>();
 
@@ -249,7 +258,7 @@ public sealed class KycScoringService
         });
 
         // ── 5. RIB extrait et contrôlé (10 pts) ───────────────────────────────
-        var ribDigits = Regex.Replace(ocr?.RibExtrait ?? string.Empty, @"\D", string.Empty);
+        var ribDigits = Regex.Replace(ocr?.RibExtrait ?? string.Empty, @"\D", string.Empty, RegexOptions.None, RegexMatchPolicy.Timeout);
         var ribValide = ocr?.OcrSuccess == true && ribDigits.Length == 20;
         var ribPoints = ribValide ? 10 : 0;
         breakdown.Add(new KycBreakdownItem
@@ -279,8 +288,8 @@ public sealed class KycScoringService
         {
             (_, true, _) => KycDecision.RevisionManuelle,
             (_, false, true) => KycDecision.RevisionManuelle,
-            ( >= 80, false, false) => KycDecision.AutoApprovalCandidate,
-            ( >= 50, false, false) => KycDecision.RevisionManuelle,
+            (var currentScore, false, false) when currentScore >= autoApprovalThreshold => KycDecision.AutoApprovalCandidate,
+            (var currentScore, false, false) when currentScore >= manualReviewThreshold => KycDecision.RevisionManuelle,
             _ => KycDecision.RejetAutomatique
         };
 
@@ -317,7 +326,7 @@ public sealed class KycScoringService
         // Prénom/Nom — pas de chiffres, min 3 chars
         var prenomOk = !string.IsNullOrWhiteSpace(req.RespPrenom)
             && req.RespPrenom.Trim().Length >= 3
-            && !Regex.IsMatch(req.RespPrenom, @"\d");
+            && !Regex.IsMatch(req.RespPrenom, @"\d", RegexOptions.None, RegexMatchPolicy.Timeout);
         results.Add(prenomOk);
         if (!prenomOk)
             flags.Add(new KycFlag
@@ -329,7 +338,7 @@ public sealed class KycScoringService
 
         var nomOk = !string.IsNullOrWhiteSpace(req.RespNom)
             && req.RespNom.Trim().Length >= 3
-            && !Regex.IsMatch(req.RespNom, @"\d");
+            && !Regex.IsMatch(req.RespNom, @"\d", RegexOptions.None, RegexMatchPolicy.Timeout);
         results.Add(nomOk);
         if (!nomOk)
             flags.Add(new KycFlag
@@ -342,7 +351,7 @@ public sealed class KycScoringService
         // Adresse — min 10 chars, doit contenir un chiffre
         var adresseOk = !string.IsNullOrWhiteSpace(req.Adresse)
             && req.Adresse.Trim().Length >= 10
-            && Regex.IsMatch(req.Adresse, @"\d");
+            && Regex.IsMatch(req.Adresse, @"\d", RegexOptions.None, RegexMatchPolicy.Timeout);
         results.Add(adresseOk);
         if (!adresseOk)
             flags.Add(new KycFlag
@@ -395,7 +404,7 @@ public sealed class KycScoringService
 
             BuildComparison("formeJuridique", "Forme juridique",
                 request.FormeJuridique, ocr.FormeJuridiqueExtraite,
-                ValuesMatchForText, critical: true),
+                ValuesMatchForFormeJuridique, critical: true),
 
             BuildComparison("responsableLegal", "Responsable légal",
                 responsableoorm, responsableOcr,
@@ -438,12 +447,21 @@ public sealed class KycScoringService
     private static bool LooksLikeGibberish(string value)
     {
         var v = value.ToLowerInvariant();
-        var latin = Regex.Replace(v, @"[^a-z]", "");
-        return Regex.IsMatch(latin, @"[bcdfghjklmnpqrstvwxyz]{5,}");
+        var latin = Regex.Replace(v, @"[^a-z]", "", RegexOptions.None, RegexMatchPolicy.Timeout);
+        return Regex.IsMatch(latin, @"[bcdfghjklmnpqrstvwxyz]{5,}", RegexOptions.None, RegexMatchPolicy.Timeout);
     }
 
     private static bool ValuesMatchForMatricule(string? a, string? b)
         => MatriculeFiscalHelper.Normalize(a) == MatriculeFiscalHelper.Normalize(b);
+
+    // La forme juridique (SARL, SUARL, SA...) est justement retiree par NormalizeText :
+    // elle doit donc etre comparee sur sa valeur brute normalisee (sans accents ni ponctuation).
+    private static bool ValuesMatchForFormeJuridique(string? a, string? b)
+    {
+        static string Clean(string? v) => Regex.Replace((v ?? string.Empty).ToUpperInvariant(), @"[^A-Z0-9]", string.Empty, RegexOptions.None, RegexMatchPolicy.Timeout);
+        var na = Clean(a);
+        return na.Length > 0 && na == Clean(b);
+    }
 
     private static bool ValuesMatchForText(string? a, string? b)
     {
@@ -467,9 +485,9 @@ public sealed class KycScoringService
             if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
                 sb.Append(ch);
         var s = sb.ToString().Normalize(NormalizationForm.FormC).ToUpperInvariant();
-        s = Regex.Replace(s, @"\b(STE|STE\.|SOCIETE|SOCIETE\.|SARL|SUARL|SA|SNC)\b", " ");
-        s = Regex.Replace(s, @"[^A-Z0-9]", " ");
-        return Regex.Replace(s, @"\s+", " ").Trim();
+        s = Regex.Replace(s, @"\b(STE|STE\.|SOCIETE|SOCIETE\.|SARL|SUARL|SA|SNC)\b", " ", RegexOptions.None, RegexMatchPolicy.Timeout);
+        s = Regex.Replace(s, @"[^A-Z0-9]", " ", RegexOptions.None, RegexMatchPolicy.Timeout);
+        return Regex.Replace(s, @"\s+", " ", RegexOptions.None, RegexMatchPolicy.Timeout).Trim();
     }
 
     private static string JoinValues(params string?[] values)

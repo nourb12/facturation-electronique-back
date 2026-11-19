@@ -64,7 +64,9 @@ public class FactureServiceTests
         dto.TotalHt.Should().Be(245m);
         dto.TotalTva.Should().Be(41.15m);
         dto.TotalTtc.Should().Be(286.15m);
-        dto.MontantRestant.Should().Be(dto.TotalTtc);
+        dto.TimbreFiscal.Should().Be(1.000m);
+        dto.NetAPayer.Should().Be(287.15m);
+        dto.MontantRestant.Should().Be(dto.TotalTtc + dto.TimbreFiscal);
         _factureRepo.Verify(x => x.AjouterAsync(It.Is<Facture>(f => f.TotalTtc == 286.15m), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -95,8 +97,10 @@ public class FactureServiceTests
         dto.Statut.Should().Be(StatutFacture.Validee.ToString());
         _factureRepo.Verify(x => x.MettreAJour(facture), Times.Once);
     }
-    [Fact]
-    public async Task GenererPdfAsync_FactureValide_ReturnsRealPdfBytes()
+    [Theory]
+    [InlineData(TypeFacture.Facture, true)]
+    [InlineData(TypeFacture.Devis, false)]
+    public async Task GenererPdfAsync_ContientLeQrUniquementPourUneFacture(TypeFacture typeFacture, bool qrAttendu)
     {
         var entrepriseId = Guid.NewGuid();
         var clientId = Guid.NewGuid();
@@ -124,7 +128,7 @@ public class FactureServiceTests
             clientId,
             creePar,
             "FAC-PDF-001",
-            TypeFacture.Facture,
+            typeFacture,
             ModePaiement.Virement,
             DateTime.UtcNow.AddDays(15));
 
@@ -144,5 +148,23 @@ public class FactureServiceTests
         pdfBytes.Should().NotBeEmpty();
         pdfBytes.Length.Should().BeGreaterThan(1000);
         Encoding.ASCII.GetString(pdfBytes, 0, 4).Should().Be("%PDF");
+        // The fixture has no logo, signature image or stamp; the only possible image is the QR.
+        Encoding.ASCII.GetString(pdfBytes).Contains("/Subtype /Image").Should().Be(qrAttendu);
+    }
+
+    [Fact]
+    public async Task CreerAsync_Refusee_NeConsommePasDeNumero()
+    {
+        var entrepriseId = Guid.NewGuid();
+        var clientId = Guid.NewGuid();
+        var client = Client.Creer(entrepriseId, "Client", "c@test.tn", TypeClient.B2B, "1234567ABM000");
+        _clientRepo.Setup(x => x.ObtenirParIdAsync(clientId, It.IsAny<CancellationToken>())).ReturnsAsync(client);
+        var request = new CreerFactureRequest(clientId, TypeFacture.Facture, ModePaiement.Virement, DateTime.UtcNow.AddDays(10),
+            [new CreerLigneFactureRequest("Service", 1, 100m, 19m, null, null)], null, null, null, RemiseGlobale: 5000m);
+
+        var act = () => CreateService().CreerAsync(entrepriseId, Guid.NewGuid(), request);
+
+        await act.Should().ThrowAsync<Einvoicing.Domain.Exceptions.ValidationMetierException>();
+        _numeroService.Verify(x => x.GenererNumeroAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

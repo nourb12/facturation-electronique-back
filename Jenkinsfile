@@ -8,7 +8,6 @@ pipeline {
 
   parameters {
     booleanParam(name: 'RUN_FRONTEND_TESTS', defaultValue: true, description: 'Run Angular/Karma tests in a Chrome-enabled Node image.')
-    booleanParam(name: 'RUN_MOBILE', defaultValue: false, description: 'Run Flutter analyze/test. First run downloads a large Flutter image.')
     booleanParam(name: 'RUN_SONAR', defaultValue: true, description: 'Run SonarQube analysis and enforce the Quality Gate.')
     booleanParam(name: 'RUN_SONAR_FRONTEND', defaultValue: false, description: 'Optional lightweight frontend SonarQube scan. Keep disabled on low-memory Docker Desktop setups.')
     booleanParam(name: 'BUILD_LOCAL_IMAGES', defaultValue: true, description: 'Build backend/frontend runtime Docker images from local publish/dist outputs.')
@@ -149,26 +148,38 @@ pipeline {
         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
           sh '''
             set -eu
-            rm -rf "$FRONTEND_HOST_PATH/.scannerwork"
             docker run --rm --network "$SONAR_NETWORK" \
               -e SONAR_HOST_URL="$SONAR_HOST_URL" \
               -e SONAR_TOKEN="$SONAR_TOKEN" \
               -e NODE_OPTIONS=--max-old-space-size=4096 \
-              -v "$FRONTEND_HOST_PATH:/usr/src" \
-              "$SONAR_SCANNER_IMAGE" \
-              -Dsonar.projectKey=tuniflow-frontend \
-              -Dsonar.projectName="TuniFlow Frontend" \
-              -Dsonar.projectBaseDir=/usr/src \
-              -Dsonar.working.directory=.scannerwork \
-              -Dsonar.sourceEncoding=UTF-8 \
-              -Dsonar.nodejs.executable=/usr/bin/node \
-              -Dsonar.javascript.node.maxspace=4096 \
-              -Dsonar.sources=src \
-              -Dsonar.tests=src \
-              -Dsonar.test.inclusions=**/*.spec.ts \
-              -Dsonar.typescript.tsconfigPaths=tsconfig.json,tsconfig.app.json,tsconfig.spec.json \
-              -Dsonar.scm.disabled=true \
-              -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.angular/**,**/coverage/**,src/assets/**
+              -v "$FRONTEND_HOST_PATH:/source:ro" \
+              --entrypoint /bin/sh "$SONAR_SCANNER_IMAGE" -ec '
+                scan_root=/tmp/tuniflow-frontend-scan
+                mkdir -p "$scan_root"
+                tar -C /source \
+                  --exclude=.git \
+                  --exclude=node_modules \
+                  --exclude=dist \
+                  --exclude=.angular \
+                  --exclude=coverage \
+                  --exclude=.scannerwork \
+                  -cf - . | tar -C "$scan_root" -xf -
+                cd "$scan_root"
+                sonar-scanner \
+                  -Dsonar.projectKey=tuniflow-frontend \
+                  -Dsonar.projectName="TuniFlow Frontend" \
+                  -Dsonar.projectBaseDir="$scan_root" \
+                  -Dsonar.working.directory="$scan_root/.scannerwork" \
+                  -Dsonar.sourceEncoding=UTF-8 \
+                  -Dsonar.nodejs.executable=/usr/bin/node \
+                  -Dsonar.javascript.node.maxspace=4096 \
+                  -Dsonar.sources=src \
+                  -Dsonar.tests=src \
+                  -Dsonar.test.inclusions=**/*.spec.ts \
+                  -Dsonar.typescript.tsconfigPaths=tsconfig.json,tsconfig.app.json,tsconfig.spec.json \
+                  -Dsonar.scm.disabled=true \
+                  -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.angular/**,**/coverage/**,src/assets/**
+              '
           '''
         }
       }
@@ -243,7 +254,6 @@ pipeline {
     }
 
     stage('Mobile Analyze') {
-      when { expression { return params.RUN_MOBILE } }
       steps {
         sh '''
           set -eux
@@ -254,7 +264,6 @@ pipeline {
     }
 
     stage('Mobile Tests') {
-      when { expression { return params.RUN_MOBILE } }
       steps {
         sh '''
           set -eux
@@ -270,10 +279,14 @@ pipeline {
         sh '''
           set -eux
           docker run --rm $DOTNET_DOCKER_ENV -v "$BACKEND_HOST_PATH:/src" -w /src "$DOTNET_IMAGE" \
-            dotnet publish Einvoicing.Api/Einvoicing.Api.csproj -c Release -o .docker/backend-publish /p:UseAppHost=false
+            sh -ec 'dotnet publish Einvoicing.Api/Einvoicing.Api.csproj -c Release -o .docker/backend-publish /p:UseAppHost=false; test -s .docker/backend-publish/Einvoicing.Api.dll; test -s .docker/backend-publish/Einvoicing.Api.runtimeconfig.json'
           docker run --rm -v "$FRONTEND_HOST_PATH:/app" $FRONTEND_DOCKER_VOLUMES -w /app "$NODE_IMAGE" \
-            npm run build -- --configuration production
+            sh -ec 'npm run build -- --configuration production; test -s dist/tuniflow/index.html'
+          docker run --rm -v "$BACKEND_HOST_PATH:/src" -v "$FRONTEND_HOST_PATH:/frontend" -w /src "$NODE_IMAGE" \
+            node devops/runtime-manifest.mjs --frontend-root /frontend --build-id "$BUILD_TAG"
+          cp "$BACKEND_HOST_PATH/.docker/provenance/runtime-manifests.json" "$WORKSPACE/runtime-manifests.json"
         '''
+        archiveArtifacts artifacts: 'runtime-manifests.json', fingerprint: true
       }
     }
 
@@ -293,7 +306,7 @@ pipeline {
       steps {
         withCredentials([usernamePassword(credentialsId: 'nexus-docker', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASSWORD')]) {
           sh '''
-            set -eux
+            set -eu
             echo "$NEXUS_PASSWORD" | docker login "$NEXUS_REGISTRY" --username "$NEXUS_USER" --password-stdin
             docker tag tuniflow-backend-api:latest "$NEXUS_REGISTRY/tuniflow-backend-api:latest"
             docker tag tuniflow-frontend:latest "$NEXUS_REGISTRY/tuniflow-frontend:latest"
@@ -343,11 +356,16 @@ pipeline {
           }
 
           docker compose -f docker-compose.local.yml ps
+          backend_binding="$(docker compose -f docker-compose.local.yml port --index 1 backend-api 8080 | head -n 1)"
+          backend_port="${backend_binding##*:}"
+          case "$backend_port" in
+            ''|*[!0-9]*) echo "Cannot resolve the published backend port"; exit 1 ;;
+          esac
           docker exec tuniflow-postgres pg_isready -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-einvoicing_db}"
           check_url "Frontend" "$VERIFY_BASE_URL/" "200"
           check_url "Frontend SPA route" "$VERIFY_BASE_URL/login" "200"
           check_url "OCR Health" "$VERIFY_BASE_URL:8000/health" "200"
-          check_url "Backend direct" "$VERIFY_BASE_URL:5051/" "401"
+          check_url "Backend direct" "$VERIFY_BASE_URL:$backend_port/" "401"
           check_url "Backend proxy login endpoint" "$VERIFY_BASE_URL/api/auth/login" "401"
         '''
       }

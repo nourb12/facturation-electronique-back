@@ -6,7 +6,7 @@ namespace Einvoicing.Domain.Entities;
 
 public sealed class Entreprise
 {
-    private static readonly Regex MatriculeFiscalPattern = new(@"^[0-9]{7}[A-Z]([A-Z]{2}[0-9]{3})?$", RegexOptions.Compiled);
+    private static readonly Regex MatriculeFiscalPattern = new(@"^[0-9]{7}[A-Z]([A-Z]{2}[0-9]{3})?$", RegexOptions.Compiled, RegexMatchPolicy.Timeout);
 
     public Guid Id { get; private set; }
     public string Nom { get; private set; } = string.Empty;
@@ -54,7 +54,7 @@ public sealed class Entreprise
         ArgumentException.ThrowIfNullOrWhiteSpace(matriculeFiscal);
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
 
-        var matriculeNormalise = Regex.Replace(matriculeFiscal.Trim().ToUpperInvariant(), @"[^A-Z0-9]", string.Empty);
+        var matriculeNormalise = Regex.Replace(matriculeFiscal.Trim().ToUpperInvariant(), @"[^A-Z0-9]", string.Empty, RegexOptions.None, RegexMatchPolicy.Timeout);
         if (!MatriculeFiscalPattern.IsMatch(matriculeNormalise))
             throw new ValidationMetierException("Le matricule fiscal doit respecter le format 1495908/S ou 1234567A/B/M/000.");
 

@@ -36,3 +36,8 @@ logs.txt
 # Local Docker publish output
 .docker/
 .sonarqube/
+
+# Private RAG caches, feedback and local evaluation files
+**/.rag-index/
+**/.rag-feedback/
+**/.rag-evaluation/

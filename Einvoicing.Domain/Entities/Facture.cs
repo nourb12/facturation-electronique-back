@@ -5,6 +5,9 @@ namespace Einvoicing.Domain.Entities;
 
 public sealed class Facture
 {
+    /// <summary>Droit de timbre sur les factures (Tunisie) : 1,000 TND par facture.</summary>
+    public const decimal MontantTimbreFiscal = 1.000m;
+
     public Guid Id { get; private set; }
     public Guid EntrepriseId { get; private set; }
     public Guid ClientId { get; private set; }
@@ -25,6 +28,10 @@ public sealed class Facture
     public decimal TotalHt { get; private set; }
     public decimal TotalTva { get; private set; }
     public decimal TotalTtc { get; private set; }
+    /// <summary>Remise globale en montant HT, répartie au prorata sur les bases de TVA.</summary>
+    public decimal RemiseGlobale { get; private set; }
+    /// <summary>Droit de timbre appliqué (hors TVA, hors base de retenue à la source).</summary>
+    public decimal TimbreFiscal { get; private set; }
     public decimal MontantPaye { get; private set; }
     public bool AppliquerRS { get; private set; }
     public string? CodeRS { get; private set; }
@@ -68,8 +75,13 @@ public sealed class Facture
         bool appliquerRS = false,
         string? codeRS = null,
         decimal tauxRS = 0,
-        Guid? factureOrigineId = null)
+        Guid? factureOrigineId = null,
+        decimal remiseGlobale = 0,
+        bool appliquerTimbre = true)
     {
+        if (remiseGlobale < 0)
+            throw new ValidationMetierException("La remise globale ne peut pas être négative.");
+
         if (dateEcheance.Date < DateTime.UtcNow.Date)
             throw new ValidationMetierException("La date d'échéance ne peut pas être dans le passé.");
 
@@ -91,12 +103,15 @@ public sealed class Facture
             ConditionsPaiement = conditionsPaiement?.Trim(),
             AppliquerRS = appliquerRS,
             CodeRS = string.IsNullOrWhiteSpace(codeRS) ? null : codeRS.Trim(),
-            TauxRS = appliquerRS ? Math.Round(tauxRS, 3) : 0,
+            TauxRS = appliquerRS ? Math.Round(tauxRS, 3, MidpointRounding.AwayFromZero) : 0,
             FactureOrigineId = factureOrigineId,
+            RemiseGlobale = Math.Round(remiseGlobale, 3, MidpointRounding.AwayFromZero),
+            TimbreFiscal = typeFacture == TypeFacture.Facture && appliquerTimbre ? MontantTimbreFiscal : 0,
             TotalHt = 0,
             TotalTva = 0,
             TotalTtc = 0,
             MontantPaye = 0,
+            NetAPayer = typeFacture == TypeFacture.Facture && appliquerTimbre ? MontantTimbreFiscal : 0,
             CreeLe = DateTime.UtcNow,
             ModifieLe = DateTime.UtcNow
         };
@@ -105,6 +120,17 @@ public sealed class Facture
             facture.Id, creePar, "Création", "Facture créée en brouillon."));
 
         return facture;
+    }
+
+    /// <summary>
+    /// Numéro définitif, attribué une fois tous les contrôles passés : un document refusé
+    /// ne consomme pas de numéro (numérotation continue, sans trou).
+    /// </summary>
+    public void AttribuerNumero(string numero)
+    {
+        if (string.IsNullOrWhiteSpace(numero)) throw new ValidationMetierException("Le numéro est requis.");
+        if (Statut != StatutFacture.Brouillon) throw new ValidationMetierException("Le numéro d'une facture émise ne peut pas changer.");
+        Numero = numero.Trim();
     }
 
     public void AjouterLigne(LigneFacture ligne)
@@ -132,8 +158,11 @@ public sealed class Facture
     public void MettreAJourInfos(
         ModePaiement modePaiement, DateTime dateEcheance,
         string? reference, string? notes, string? conditionsPaiement,
-        bool appliquerRS = false, string? codeRS = null, decimal tauxRS = 0)
+        bool appliquerRS = false, string? codeRS = null, decimal tauxRS = 0,
+        decimal remiseGlobale = 0, bool appliquerTimbre = true)
     {
+        if (remiseGlobale < 0)
+            throw new ValidationMetierException("La remise globale ne peut pas être négative.");
         if (Statut != StatutFacture.Brouillon)
             throw new ValidationMetierException("Impossible de modifier une facture hors brouillon.");
 
@@ -147,9 +176,19 @@ public sealed class Facture
         ConditionsPaiement = conditionsPaiement?.Trim();
         AppliquerRS = appliquerRS;
         CodeRS = string.IsNullOrWhiteSpace(codeRS) ? null : codeRS.Trim();
-        TauxRS = appliquerRS ? Math.Round(tauxRS, 3) : 0;
+        TauxRS = appliquerRS ? Math.Round(tauxRS, 3, MidpointRounding.AwayFromZero) : 0;
+        RemiseGlobale = Math.Round(remiseGlobale, 3, MidpointRounding.AwayFromZero);
+        TimbreFiscal = TypeFacture == TypeFacture.Facture && appliquerTimbre ? MontantTimbreFiscal : 0;
         RecalculerTotaux();
         ModifieLe = DateTime.UtcNow;
+    }
+
+    /// <summary>Vérifie que la remise globale ne dépasse pas le total HT des lignes.</summary>
+    public void ControlerRemiseGlobale()
+    {
+        var totalLignesHt = _lignes.Sum(l => l.MontantHt);
+        if (RemiseGlobale > totalLignesHt)
+            throw new ValidationMetierException("La remise globale ne peut pas dépasser le total HT des lignes.");
     }
 
     public void ValiderMetier(Guid validePar)
@@ -162,6 +201,8 @@ public sealed class Facture
 
         if (TotalTtc <= 0)
             throw new ValidationMetierException("Le montant total doit être positif.");
+
+        ControlerRemiseGlobale();
 
         Statut = StatutFacture.Validee;
         ModifieLe = DateTime.UtcNow;
@@ -248,16 +289,20 @@ public sealed class Facture
         if (montant <= 0)
             throw new ValidationMetierException("Le montant du paiement doit être positif.");
 
-        MontantPaye = Math.Round(MontantPaye + montant, 3);
+        montant = Math.Round(montant, 3, MidpointRounding.AwayFromZero);
+        if (montant > MontantRestant)
+            throw new ValidationMetierException(
+                $"Le montant ({montant:N3}) dépasse le solde restant ({MontantRestant:N3}).");
+
+        MontantPaye = Math.Round(MontantPaye + montant, 3, MidpointRounding.AwayFromZero);
 
         if (MontantPaye >= NetAPayer)
         {
-            MontantPaye = NetAPayer;
             Statut = StatutFacture.Payee;
             DatePaiement = DateTime.UtcNow;
             _historique.Add(HistoriqueFacture.Creer(
                 Id, enregistrePar, "Paiement complet",
-                $"Paiement total reçu : {TotalTtc:N3} {Devise}."));
+                $"Paiement total reçu : {NetAPayer:N3} {Devise}."));
         }
         else
         {
@@ -284,18 +329,49 @@ public sealed class Facture
             Id, remisePar, "Remise en brouillon", "Facture remise en brouillon après rejet."));
     }
 
+    /// <summary>
+    /// Calcul fiscal tunisien :
+    /// HT net = somme des HT lignes - remise globale (répartie au prorata sur chaque taux de TVA) ;
+    /// TTC = HT net + TVA ; retenue à la source calculée sur le TTC (art. 52 du Code de l'IRPP et de l'IS) ;
+    /// net à payer = TTC + droit de timbre - retenue à la source.
+    /// </summary>
     private void RecalculerTotaux()
     {
-        TotalHt = Math.Round(_lignes.Sum(l => l.MontantHt), 3);
-        TotalTva = Math.Round(_lignes.Sum(l => l.MontantTva), 3);
-        TotalTtc = Math.Round(TotalHt + TotalTva, 3);
-        BaseRS = AppliquerRS ? TotalHt : 0;
-        MontantRS = AppliquerRS ? Math.Round(BaseRS * TauxRS / 100m, 3) : 0;
-        NetAPayer = Math.Round(Math.Max(0, TotalTtc - MontantRS), 3);
+        var totalLignesHt = _lignes.Sum(l => l.MontantHt);
+        var remise = Math.Min(RemiseGlobale, totalLignesHt);
+        var ratio = totalLignesHt > 0 ? (totalLignesHt - remise) / totalLignesHt : 1m;
+
+        TotalHt = Math.Round(totalLignesHt - remise, 3, MidpointRounding.AwayFromZero);
+        TotalTva = Math.Round(_lignes.Sum(l => Math.Round(l.MontantTva * ratio, 3, MidpointRounding.AwayFromZero)), 3, MidpointRounding.AwayFromZero);
+        TotalTtc = Math.Round(TotalHt + TotalTva, 3, MidpointRounding.AwayFromZero);
+        BaseRS = AppliquerRS ? TotalTtc : 0;
+        MontantRS = AppliquerRS ? Math.Round(BaseRS * TauxRS / 100m, 3, MidpointRounding.AwayFromZero) : 0;
+        NetAPayer = Math.Round(Math.Max(0, TotalTtc + TimbreFiscal - MontantRS), 3, MidpointRounding.AwayFromZero);
     }
 
-    public decimal MontantRestant => Math.Round(NetAPayer - MontantPaye, 3);
+    /// <summary>
+    /// Ventilation par taux de TVA après répartition de la remise globale
+    /// (bases et montants identiques au calcul des totaux).
+    /// </summary>
+    public IReadOnlyList<VentilationTva> VentilerTva()
+    {
+        var totalLignesHt = _lignes.Sum(l => l.MontantHt);
+        var remise = Math.Min(RemiseGlobale, totalLignesHt);
+        var ratio = totalLignesHt > 0 ? (totalLignesHt - remise) / totalLignesHt : 1m;
+        return _lignes
+            .GroupBy(l => l.TauxTva)
+            .OrderByDescending(g => g.Key)
+            .Select(g => new VentilationTva(
+                g.Key,
+                Math.Round(g.Sum(l => l.MontantHt * ratio), 3, MidpointRounding.AwayFromZero),
+                Math.Round(g.Sum(l => Math.Round(l.MontantTva * ratio, 3, MidpointRounding.AwayFromZero)), 3, MidpointRounding.AwayFromZero)))
+            .ToList();
+    }
+
+    public decimal MontantRestant => Math.Round(NetAPayer - MontantPaye, 3, MidpointRounding.AwayFromZero);
     public bool EstEnRetard => DateEcheance.Date < DateTime.UtcNow.Date
         && Statut != StatutFacture.Payee
         && Statut != StatutFacture.Annulee;
 }
+
+public sealed record VentilationTva(decimal Taux, decimal BaseHt, decimal MontantTva);

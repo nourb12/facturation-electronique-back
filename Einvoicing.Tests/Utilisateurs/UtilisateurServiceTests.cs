@@ -18,6 +18,67 @@ public class UtilisateurServiceTests
     private UtilisateurService CreateService() => new(
         _utilisateurRepo.Object, _sessionRepo.Object, _passwordHasher.Object);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProtectedActions_RejectSelf(bool archive)
+    {
+        var user = Utilisateur.Creer("P", "N", "self@example.test", "HASH", RoleUtilisateur.SuperAdmin, Guid.NewGuid());
+        _utilisateurRepo.Setup(r => r.ObtenirParIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        var actor = new Mock<ICurrentUserService>();
+        actor.SetupGet(a => a.UtilisateurId).Returns(user.Id);
+        actor.SetupGet(a => a.Role).Returns("SuperAdmin");
+        var service = new UtilisateurService(_utilisateurRepo.Object, _sessionRepo.Object, _passwordHasher.Object, actor.Object);
+        Func<Task> action = () => archive ? service.SupprimerAsync(user.Id) : service.SuspendreAsync(user.Id);
+        await action.Should().ThrowAsync<AccesRefuseException>();
+        user.Statut.Should().Be(StatutCompte.Actif);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProtectedActions_RejectLastSuperAdmin(bool archive)
+    {
+        var user = Utilisateur.Creer("P", "N", "last@example.test", "HASH", RoleUtilisateur.SuperAdmin, Guid.NewGuid());
+        _utilisateurRepo.Setup(r => r.ObtenirParIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _utilisateurRepo.Setup(r => r.ListerTousAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Utilisateur> { user });
+        var actor = new Mock<ICurrentUserService>();
+        actor.SetupGet(a => a.UtilisateurId).Returns(Guid.NewGuid());
+        actor.SetupGet(a => a.Role).Returns("SuperAdmin");
+        var service = new UtilisateurService(_utilisateurRepo.Object, _sessionRepo.Object, _passwordHasher.Object, actor.Object);
+        Func<Task> action = () => archive ? service.SupprimerAsync(user.Id) : service.SuspendreAsync(user.Id);
+        await action.Should().ThrowAsync<AccesRefuseException>();
+    }
+
+    [Fact]
+    public async Task Archive_PreservesDataWhenAnotherSuperAdminIsActive()
+    {
+        var user = Utilisateur.Creer("P", "N", "first@example.test", "HASH", RoleUtilisateur.SuperAdmin, Guid.NewGuid());
+        var other = Utilisateur.Creer("P", "N", "second@example.test", "HASH", RoleUtilisateur.SuperAdmin, Guid.NewGuid());
+        _utilisateurRepo.Setup(r => r.ObtenirParIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _utilisateurRepo.Setup(r => r.ListerTousAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Utilisateur> { user, other });
+        var actor = new Mock<ICurrentUserService>();
+        actor.SetupGet(a => a.UtilisateurId).Returns(other.Id);
+        actor.SetupGet(a => a.Role).Returns("SuperAdmin");
+        var service = new UtilisateurService(_utilisateurRepo.Object, _sessionRepo.Object, _passwordHasher.Object, actor.Object);
+        await service.SupprimerAsync(user.Id);
+        user.EstSupprime.Should().BeTrue();
+        user.Email.Should().Be("first@example.test");
+        _utilisateurRepo.Verify(r => r.SauvegarderAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdminCannotSuspendSuperAdmin()
+    {
+        var user = Utilisateur.Creer("P", "N", "admin@example.test", "HASH", RoleUtilisateur.SuperAdmin, Guid.NewGuid());
+        _utilisateurRepo.Setup(r => r.ObtenirParIdAsync(user.Id, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        var actor = new Mock<ICurrentUserService>();
+        actor.SetupGet(a => a.Role).Returns("Admin");
+        var service = new UtilisateurService(_utilisateurRepo.Object, _sessionRepo.Object, _passwordHasher.Object, actor.Object);
+        Func<Task> action = () => service.SuspendreAsync(user.Id);
+        await action.Should().ThrowAsync<AccesRefuseException>();
+    }
+
     [Fact]
     public async Task CreerAsync_PasswordMismatch_ThrowsValidation()
     {

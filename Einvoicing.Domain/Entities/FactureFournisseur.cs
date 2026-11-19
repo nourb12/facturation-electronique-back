@@ -38,7 +38,8 @@ public sealed class FactureFournisseur
         if (dateEcheance.Date < dateFacture.Date) throw new ValidationMetierException("L'échéance doit être postérieure à la facture.");
         var totalTtc = Math.Round(totalHt + totalTva, 3);
         if (totalTtc <= 0) throw new ValidationMetierException("Le total TTC doit être positif.");
-        var retenue = Math.Round(totalHt * Math.Max(0, tauxRetenue) / 100m, 3);
+        // Retenue a la source calculee sur le montant TTC (art. 52 du Code de l'IRPP et de l'IS).
+        var retenue = Math.Round(totalTtc * Math.Max(0, tauxRetenue) / 100m, 3, MidpointRounding.AwayFromZero);
         var now = DateTime.UtcNow;
         return new FactureFournisseur
         {
@@ -59,7 +60,7 @@ public sealed class FactureFournisseur
         if (dateEcheance.Date < dateFacture.Date || totalHt < 0 || totalTva < 0) throw new ValidationMetierException("Les données de facture sont invalides.");
         var totalTtc = Math.Round(totalHt + totalTva, 3); if (totalTtc <= 0) throw new ValidationMetierException("Le total TTC doit être positif.");
         DateFacture = dateFacture; DateEcheance = dateEcheance; TotalHt = Math.Round(totalHt, 3); TotalTva = Math.Round(totalTva, 3); TotalTtc = totalTtc;
-        TauxRetenue = Math.Round(Math.Max(0, tauxRetenue), 3); MontantRetenue = Math.Round(TotalHt * TauxRetenue / 100m, 3); NetAPayer = Math.Round(TotalTtc - MontantRetenue, 3);
+        TauxRetenue = Math.Round(Math.Max(0, tauxRetenue), 3); MontantRetenue = Math.Round(TotalTtc * TauxRetenue / 100m, 3, MidpointRounding.AwayFromZero); NetAPayer = Math.Round(TotalTtc - MontantRetenue, 3);
         LignesJson = lignesJson; Reference = reference?.Trim(); Notes = notes?.Trim(); ModifieLe = DateTime.UtcNow;
     }
     public void EnregistrerPaiement(decimal montant)

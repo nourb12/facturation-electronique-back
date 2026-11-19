@@ -84,8 +84,17 @@ public static class DataSeeder
             entreprise.Id);
         financier.MettreAJourProfil("Youssef", "Gharbi", "+21650222333", "DAF", "Finance");
 
+        var commercial = Utilisateur.Creer(
+            "Sana",
+            "Mansouri",
+            "ventes@tuniflow.tn",
+            hasher.Hacher(motDePasse),
+            RoleUtilisateur.CollaborateurVentes,
+            entreprise.Id);
+        commercial.MettreAJourProfil("Sana", "Mansouri", "+21655123456", "Commerciale", "Ventes");
+
         db.Entreprises.Add(entreprise);
-        db.Utilisateurs.AddRange(superAdmin, admin, responsable, financier);
+        db.Utilisateurs.AddRange(superAdmin, admin, responsable, financier, commercial);
 
         if (jwt != null)
         {
@@ -394,7 +403,16 @@ public static class DataSeeder
         IPasswordHasher hasher,
         IJwtService? jwt)
     {
-        var entreprise = await db.Entreprises
+        // Les comptes de démonstration restent attachés à l'entreprise du responsable démo,
+        // même si une autre entreprise est modifiée plus récemment.
+        var entrepriseDemoId = await db.Utilisateurs
+            .Where(u => u.Email == "responsable@tuniflow.tn" && u.EntrepriseId != null)
+            .Select(u => u.EntrepriseId)
+            .FirstOrDefaultAsync();
+        var entreprise = entrepriseDemoId is null
+            ? null
+            : await db.Entreprises.FirstOrDefaultAsync(e => e.Id == entrepriseDemoId);
+        entreprise ??= await db.Entreprises
             .OrderByDescending(e => e.ModifieLe)
             .ThenByDescending(e => e.CreeLe)
             .FirstOrDefaultAsync();
@@ -403,6 +421,14 @@ public static class DataSeeder
             return;
 
         await EnsureDemoAccountsAsync(db, entreprise, hasher);
+
+        // Un historique de démonstration complet a été généré : on ne le complète ni ne l'écrase.
+        var cleHistorique = "demo.historique." + entreprise.Id;
+        if (await db.ParametresPlateforme.AnyAsync(p => p.Cle == cleHistorique))
+        {
+            await db.SaveChangesAsync();
+            return;
+        }
 
         var now = DateTime.UtcNow;
         var utilisateurs = await db.Utilisateurs
@@ -576,6 +602,18 @@ public static class DataSeeder
             telephone: "+21650222333",
             poste: "DAF",
             departement: "Finance");
+
+        await EnsureDemoAccountAsync(
+            db,
+            hasher,
+            prenom: "Sana",
+            nom: "Mansouri",
+            email: "ventes@tuniflow.tn",
+            role: RoleUtilisateur.CollaborateurVentes,
+            entrepriseId: entreprise.Id,
+            telephone: "+21655123456",
+            poste: "Commerciale",
+            departement: "Ventes");
     }
 
     private static async Task EnsureDemoAccountAsync(
@@ -1003,6 +1041,7 @@ public static class DataSeeder
             RoleUtilisateur.SuperAdmin => "Super administrateur",
             RoleUtilisateur.ResponsableEntreprise => "Responsable entreprise",
             RoleUtilisateur.ResponsableFinancier => "Responsable financier",
+            RoleUtilisateur.CollaborateurVentes => "Collaborateur ventes",
             _ => "Administrateur"
         };
 
@@ -1011,6 +1050,7 @@ public static class DataSeeder
         {
             RoleUtilisateur.ResponsableFinancier => "Finance",
             RoleUtilisateur.ResponsableEntreprise => "Operations",
+            RoleUtilisateur.CollaborateurVentes => "Ventes",
             _ => "Administration"
         };
 

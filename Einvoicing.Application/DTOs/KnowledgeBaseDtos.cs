@@ -13,6 +13,8 @@ public sealed record KnowledgeDocumentDto(
     string? ExtractionError,
     DateTime CreatedAt);
 
+public sealed record KnowledgeDocumentContentDto(Guid Id, string Title, string Content, string Status, DateTime UpdatedAt);
+
 public sealed record KnowledgeSearchResultDto(
     Guid DocumentId,
     string DocumentTitle,
@@ -21,10 +23,12 @@ public sealed record KnowledgeSearchResultDto(
     int Position,
     string Heading,
     string Content,
-    int Score);
+    int Score,
+    double? Similarity = null);
 
-public sealed record AssistantQuestionDto(string Question);
+public sealed record AssistantHistoryMessageDto(string Role, string Text);
+public sealed record AssistantQuestionDto(string Question, IReadOnlyList<AssistantHistoryMessageDto>? History = null);
 
-public sealed record AssistantSourceDto(Guid DocumentId, string Title, string Category, string Source, string Heading);
+public sealed record AssistantSourceDto(Guid DocumentId, string Title, string Category, string Source, string Heading, string? Excerpt = null);
 
-public sealed record AssistantAnswerDto(string Answer, bool Found, string Mode, IReadOnlyList<AssistantSourceDto> Sources);
+public sealed record AssistantAnswerDto(string Answer, bool Found, string Mode, IReadOnlyList<AssistantSourceDto> Sources, IReadOnlyList<string>? Suggestions = null, string? Warning = null);

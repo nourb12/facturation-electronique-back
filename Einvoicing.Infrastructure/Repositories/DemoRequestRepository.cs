@@ -26,7 +26,7 @@ public sealed class DemoRequestRepository(ContextBaseDeDonnees db) : IDemoReques
         => await db.DemoRequests.AddAsync(request, ct);
 
     public void Update(DemoRequest request)
-        => db.DemoRequests.Update(request);
+        => db.MarquerModifie(request);
 
     public async Task SaveChangesAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);

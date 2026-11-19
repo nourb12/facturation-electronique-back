@@ -92,11 +92,20 @@ public sealed class FactureRepository(ContextBaseDeDonnees db) : IFactureReposit
         var maintenant = DateTime.UtcNow;
         var debutMois = new DateTime(maintenant.Year, maintenant.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
+        // Devis et proformas ne sont pas des factures : ils restent hors des indicateurs.
         var toutes = await db.Factures
-            .Where(f => f.EntrepriseId == entrepriseId)
+            .Where(f => f.EntrepriseId == entrepriseId
+                && f.TypeFacture != TypeFacture.Devis
+                && f.TypeFacture != TypeFacture.Proforma)
             .ToListAsync(ct);
 
-        var mois = toutes.Where(f => f.DateEmission >= debutMois).ToList();
+        var emises = toutes.Where(f => f.Statut != StatutFacture.Brouillon && f.Statut != StatutFacture.Annulee).ToList();
+        var mois = emises.Where(f => f.DateEmission >= debutMois && f.TypeFacture == TypeFacture.Facture).ToList();
+
+        // Encaissé du mois = règlements reçus ce mois-ci, quelle que soit la date de la facture.
+        var encaisseMois = await db.Paiements
+            .Where(p => p.EntrepriseId == entrepriseId && p.DatePaiement >= debutMois)
+            .SumAsync(p => (decimal?)p.Montant, ct) ?? 0m;
 
         return new StatistiquesFacturesDto(
             toutes.Count(f => f.Statut == StatutFacture.Brouillon),
@@ -107,9 +116,8 @@ public sealed class FactureRepository(ContextBaseDeDonnees db) : IFactureReposit
             toutes.Count(f => f.Statut == StatutFacture.Payee),
             toutes.Count(f => f.EstEnRetard),
             mois.Sum(f => f.TotalTtc),
-            mois.Sum(f => f.MontantPaye),
-            toutes.Where(f => f.Statut != StatutFacture.Payee
-                && f.Statut != StatutFacture.Annulee)
+            encaisseMois,
+            emises.Where(f => f.Statut != StatutFacture.Payee && f.TypeFacture == TypeFacture.Facture)
                   .Sum(f => f.MontantRestant)
         );
     }
@@ -266,7 +274,15 @@ public sealed class FactureRepository(ContextBaseDeDonnees db) : IFactureReposit
         => await db.Factures.AddAsync(facture, ct);
 
     public void MettreAJour(Facture facture)
-        => db.Factures.Update(facture);
+    {
+        // New children already have GUID keys; mark them as inserts before EF
+        // infers an update for an entity that does not exist in the database.
+        foreach (var ligne in facture.Lignes)
+            if (db.Entry(ligne).State == EntityState.Detached) db.LignesFacture.Add(ligne);
+        foreach (var historique in facture.Historique)
+            if (db.Entry(historique).State == EntityState.Detached) db.HistoriqueFactures.Add(historique);
+        db.Entry(facture).State = EntityState.Modified;
+    }
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);
@@ -288,7 +304,7 @@ public sealed class CompteurFactureRepository(ContextBaseDeDonnees db) : ICompte
         => await db.CompteurFactures.AddAsync(compteur, ct);
 
     public void MettreAJour(CompteurFacture compteur)
-        => db.CompteurFactures.Update(compteur);
+        => db.MarquerModifie(compteur);
 
     public async Task<CompteurFactureNumeroResult> IncrementerEtObtenirAsync(
         Guid entrepriseId, int annee, int mois, CancellationToken ct = default)

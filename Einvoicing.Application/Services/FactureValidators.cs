@@ -8,6 +8,8 @@ public class CreerFactureValidator : AbstractValidator<CreerFactureRequest>
     public CreerFactureValidator()
     {
         RuleFor(x => x.ClientId).NotEmpty();
+        RuleFor(x => x.TypeFacture).IsInEnum();
+        RuleFor(x => x.ModePaiement).IsInEnum();
         RuleFor(x => x.DateEcheance)
             .GreaterThanOrEqualTo(DateTime.UtcNow.Date)
             .WithMessage("La date d'échéance ne peut pas être dans le passé.");

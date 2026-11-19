@@ -52,7 +52,7 @@ public sealed class ProduitRepository(ContextBaseDeDonnees db) : IProduitReposit
         => await db.Produits.AddAsync(produit, ct);
 
     public void MettreAJour(Produit produit)
-        => db.Produits.Update(produit);
+        => db.MarquerModifie(produit);
 
     public async Task SauvegarderAsync(CancellationToken ct = default)
         => await db.SaveChangesAsync(ct);
